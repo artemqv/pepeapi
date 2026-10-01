@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+
 	"log"
+	"my-api/internal/database"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Item struct {
@@ -37,44 +42,101 @@ func logging(h http.Handler) http.Handler {
 	})
 }
 
-func getItem(w http.ResponseWriter, r *http.Request) {
-	rawID := r.PathValue("id")
-	id, err := strconv.Atoi(rawID)
+func getItem(pool *pgxpool.Pool) http.HandlerFunc {
+	return func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		id, err := strconv.Atoi(r.PathValue("id"))
 
-	if err != nil || id <= 0 {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	if id != 42 {
-		http.Error(w, "item not found", http.StatusNotFound)
-		return
-	}
+		if err != nil || id <= 0 {
+			http.Error(
+				w,
+				"invalid id",
+				http.StatusBadRequest,
+			)
+			return
+		}
 
-	item := Item{
-		ID:     42,
-		Name:   "pipiska",
-		Vremya: "5",
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(item)
+		var item Item
 
-}
-func ping(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "pong")
+		err = pool.QueryRow(
+			r.Context(),
+			`
+				SELECT id, name
+				FROM items
+				WHERE id = $1
+			`,
+			id,
+		).Scan(
+			&item.ID,
+			&item.Name,
+		)
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(
+				w,
+				"item not found",
+				http.StatusNotFound,
+			)
+			return
+		}
+
+		if err != nil {
+			log.Println("database error:", err)
+
+			http.Error(
+				w,
+				"internal server error",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		w.Header().Set(
+			"Content-Type",
+			"application/json",
+		)
+
+		if err := json.NewEncoder(w).Encode(item); err != nil {
+			log.Println(err)
+		}
+	}
 }
 
 func main() {
+	// 1. Подключаемся к постгресу
+
+	dbCtx := context.Background()
+
+	dsn := "postgres://app:secret@localhost:5432/myapi?sslmode=disable"
+
+	pool, err := database.NewPool(dbCtx, dsn)
+	if err != nil {
+		log.Fatal("database connection error:", err)
+	}
+	defer pool.Close()
+
+	log.Println("database connected")
+
+	// 2. Создаём хттп маршрутизатор
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /ping", ping)
-	mux.HandleFunc("GET /items/{id}", getItem)
+	mux.HandleFunc("GET /items/{id}",
+		getItem(pool),
+	)
 
 	handler := logging(mux)
+
+	// 3. Создаём хттп сервак
 
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: handler,
 	}
+
+	// 4. Запускаем хттп сервер
 
 	go func() {
 		log.Println("listening on :8080")
@@ -86,16 +148,20 @@ func main() {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(
+	// 5. Ждём Ctrl+C или SIGTERM
+
+	sigCtx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
 	defer stop()
 
-	<-ctx.Done()
+	<-sigCtx.Done()
 
 	log.Println("shutting down...")
+
+	// 6. Даём серверу максимум 10 секунд на остановку
 
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
@@ -103,7 +169,7 @@ func main() {
 	)
 	defer cancel()
 
-	err := srv.Shutdown(shutdownCtx)
+	err = srv.Shutdown(shutdownCtx)
 	if err != nil {
 		log.Printf("shutdown error: %v", err)
 	}
