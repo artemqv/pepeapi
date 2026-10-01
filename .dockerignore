@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+
+*.log
+*.tmp
+
+server
+server.exe
+
+bigfile.dat
