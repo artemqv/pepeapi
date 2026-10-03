@@ -9,7 +9,7 @@ import (
 type Item struct {
 	ID     int    `json:"id"`
 	Name   string `json:"name"`
-	Vremya string `json:"tecno"`
+	Vremya string `json:"vremya"`
 }
 
 func GetItem(
