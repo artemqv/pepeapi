@@ -6,14 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"my-api/internal/database"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
-
-	"my-api/internal/database"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -93,12 +92,12 @@ func ping(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Контекст для подключения к БД.
+	// Контекст для подключения к БД
 	dbCtx := context.Background()
 
 	dsn := "postgres://app:secret@localhost:5432/myapi?sslmode=disable"
 
-	// Создаём pool.
+	// Создаём пул соединений
 	pool, err := database.NewPool(dbCtx, dsn)
 	if err != nil {
 		log.Fatal("database connection error:", err)
@@ -107,7 +106,6 @@ func main() {
 
 	log.Println("database connected")
 
-	// Если ты уже написал CreateTables().
 	err = database.CreateTables(dbCtx, pool)
 	if err != nil {
 		log.Fatal("create tables error:", err)
@@ -115,7 +113,7 @@ func main() {
 
 	log.Println("database tables ready")
 
-	// HTTP маршруты.
+	// HTTP маршруты
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(
@@ -135,7 +133,7 @@ func main() {
 		Handler: handler,
 	}
 
-	// Запускаем HTTP сервер.
+	// Запускаем HTTP сервер
 	go func() {
 		log.Println("listening on :8080")
 
@@ -146,7 +144,7 @@ func main() {
 		}
 	}()
 
-	// Ждём Ctrl+C или SIGTERM от Docker.
+	// Ожидание сигнала остановки от докера
 	sigCtx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
