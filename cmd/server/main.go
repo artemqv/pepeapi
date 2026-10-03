@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
+	"fmt"
 	"log"
-	"my-api/internal/database"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,15 +13,11 @@ import (
 	"syscall"
 	"time"
 
+	"my-api/internal/database"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type Item struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Vremya string `json:"vremya"`
-}
 
 func logging(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(
@@ -43,12 +38,10 @@ func logging(h http.Handler) http.Handler {
 }
 
 func getItem(pool *pgxpool.Pool) http.HandlerFunc {
-	return func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-		id, err := strconv.Atoi(r.PathValue("id"))
+	return func(w http.ResponseWriter, r *http.Request) {
+		rawID := r.PathValue("id")
 
+		id, err := strconv.Atoi(rawID)
 		if err != nil || id <= 0 {
 			http.Error(
 				w,
@@ -58,19 +51,10 @@ func getItem(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		var item Item
-
-		err = pool.QueryRow(
+		item, err := database.GetItem(
 			r.Context(),
-			`
-				SELECT id, name
-				FROM items
-				WHERE id = $1
-			`,
+			pool,
 			id,
-		).Scan(
-			&item.ID,
-			&item.Name,
 		)
 
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -99,18 +83,22 @@ func getItem(pool *pgxpool.Pool) http.HandlerFunc {
 		)
 
 		if err := json.NewEncoder(w).Encode(item); err != nil {
-			log.Println(err)
+			log.Println("json error:", err)
 		}
 	}
 }
 
-func main() {
-	// 1. Подключаемся к постгресу
+func ping(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "pong")
+}
 
+func main() {
+	// Контекст для подключения к БД.
 	dbCtx := context.Background()
 
 	dsn := "postgres://app:secret@localhost:5432/myapi?sslmode=disable"
 
+	// Создаём pool.
 	pool, err := database.NewPool(dbCtx, dsn)
 	if err != nil {
 		log.Fatal("database connection error:", err)
@@ -119,25 +107,35 @@ func main() {
 
 	log.Println("database connected")
 
-	// 2. Создаём хттп маршрутизатор
+	// Если ты уже написал CreateTables().
+	err = database.CreateTables(dbCtx, pool)
+	if err != nil {
+		log.Fatal("create tables error:", err)
+	}
 
+	log.Println("database tables ready")
+
+	// HTTP маршруты.
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /items/{id}",
+	mux.HandleFunc(
+		"GET /ping",
+		ping,
+	)
+
+	mux.HandleFunc(
+		"GET /items/{id}",
 		getItem(pool),
 	)
 
 	handler := logging(mux)
-
-	// 3. Создаём хттп сервак
 
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: handler,
 	}
 
-	// 4. Запускаем хттп сервер
-
+	// Запускаем HTTP сервер.
 	go func() {
 		log.Println("listening on :8080")
 
@@ -148,8 +146,7 @@ func main() {
 		}
 	}()
 
-	// 5. Ждём Ctrl+C или SIGTERM
-
+	// Ждём Ctrl+C или SIGTERM от Docker.
 	sigCtx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -161,8 +158,7 @@ func main() {
 
 	log.Println("shutting down...")
 
-	// 6. Даём серверу максимум 10 секунд на остановку
-
+	// Даём серверу максимум 10 секунд на graceful shutdown.
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
 		10*time.Second,

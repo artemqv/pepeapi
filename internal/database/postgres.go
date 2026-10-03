@@ -27,3 +27,20 @@ func NewPool(
 
 	return pool, nil
 }
+
+func CreateTables(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+) error {
+	query := `
+		CREATE TABLE IF NOT EXISTS items (
+			id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+			name TEXT NOT NULL,
+			vremya TEXT NOT NULL
+		);
+	`
+
+	_, err := pool.Exec(ctx, query)
+
+	return err
+}
