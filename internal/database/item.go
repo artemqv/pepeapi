@@ -2,9 +2,14 @@ package database
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrItemNotFound = errors.New("item not found")
 
 type Item struct {
 	ID     int    `json:"id"`
@@ -12,14 +17,23 @@ type Item struct {
 	Vremya string `json:"vremya"`
 }
 
-func GetItem(
+type Repository struct {
+	pool *pgxpool.Pool
+}
+
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{
+		pool: pool,
+	}
+}
+
+func (r *Repository) GetItem(
 	ctx context.Context,
-	pool *pgxpool.Pool,
 	id int,
 ) (Item, error) {
 	var item Item
 
-	err := pool.QueryRow(
+	err := r.pool.QueryRow(
 		ctx,
 		`
 			SELECT id, name, vremya
@@ -33,5 +47,17 @@ func GetItem(
 		&item.Vremya,
 	)
 
-	return item, err
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Item{}, ErrItemNotFound
+	}
+
+	if err != nil {
+		return Item{}, fmt.Errorf(
+			"get item %d: %w",
+			id,
+			err,
+		)
+	}
+
+	return item, nil
 }

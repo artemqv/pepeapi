@@ -12,6 +12,7 @@ func NewPool(
 ) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
+
 		return nil, err
 	}
 

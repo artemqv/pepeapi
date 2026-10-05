@@ -13,10 +13,16 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+//go:generate mockgen -source=main.go -destination=item_repository_mock_test.go -package=main
+
+type itemGetter interface {
+	GetItem(
+		context.Context,
+		int,
+	) (database.Item, error)
+}
 
 func logging(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(
@@ -36,11 +42,10 @@ func logging(h http.Handler) http.Handler {
 	})
 }
 
-func getItem(pool *pgxpool.Pool) http.HandlerFunc {
+func getItem(repo itemGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rawID := r.PathValue("id")
+		id, err := strconv.Atoi(r.PathValue("id"))
 
-		id, err := strconv.Atoi(rawID)
 		if err != nil || id <= 0 {
 			http.Error(
 				w,
@@ -50,13 +55,12 @@ func getItem(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		item, err := database.GetItem(
+		item, err := repo.GetItem(
 			r.Context(),
-			pool,
 			id,
 		)
 
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, database.ErrItemNotFound) {
 			http.Error(
 				w,
 				"item not found",
@@ -86,7 +90,6 @@ func getItem(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 	}
 }
-
 func ping(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "pong")
 }
@@ -103,6 +106,8 @@ func main() {
 		log.Fatal("database connection error:", err)
 	}
 	defer pool.Close()
+
+	repo := database.NewRepository(pool)
 
 	log.Println("database connected")
 
@@ -123,7 +128,7 @@ func main() {
 
 	mux.HandleFunc(
 		"GET /items/{id}",
-		getItem(pool),
+		getItem(repo),
 	)
 
 	handler := logging(mux)
