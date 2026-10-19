@@ -44,11 +44,17 @@ func logging(h http.Handler, logger *slog.Logger) http.Handler {
 	})
 }
 
-func getItem(repo itemGetter) http.HandlerFunc {
+func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
 
 		if err != nil || id <= 0 {
+			logger.Error(
+				"invalid id",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"id", id,
+			)
 			http.Error(
 				w,
 				"invalid id",
@@ -63,6 +69,12 @@ func getItem(repo itemGetter) http.HandlerFunc {
 		)
 
 		if errors.Is(err, database.ErrItemNotFound) {
+			logger.Error(
+				"item not found",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"id", id,
+			)
 			http.Error(
 				w,
 				"item not found",
@@ -72,7 +84,12 @@ func getItem(repo itemGetter) http.HandlerFunc {
 		}
 
 		if err != nil {
-			log.Println("database error:", err)
+			logger.Error(
+				"database error",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"error", err,
+			)
 
 			http.Error(
 				w,
@@ -88,7 +105,12 @@ func getItem(repo itemGetter) http.HandlerFunc {
 		)
 
 		if err := json.NewEncoder(w).Encode(item); err != nil {
-			log.Println("json error:", err)
+			logger.Error(
+				"json error",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"error", err,
+			)
 		}
 	}
 }
@@ -131,7 +153,7 @@ func main() {
 
 	mux.HandleFunc(
 		"GET /items/{id}",
-		getItem(repo),
+		getItem(repo, logger),
 	)
 
 	handler := logging(mux, logger)
