@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"my-api/internal/database"
 	"net/http"
 	"os"
@@ -24,20 +25,21 @@ type itemGetter interface {
 	) (database.Item, error)
 }
 
-func logging(h http.Handler) http.Handler {
+func logging(h http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(
 		w http.ResponseWriter,
 		r *http.Request,
+
 	) {
 		started := time.Now()
 
 		h.ServeHTTP(w, r)
 
-		log.Printf(
-			"%s %s took %s",
-			r.Method,
-			r.URL.Path,
-			time.Since(started),
+		logger.Info(
+			"request completed",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"duration", time.Since(started),
 		)
 	})
 }
@@ -109,14 +111,15 @@ func main() {
 
 	repo := database.NewRepository(pool)
 
-	log.Println("database connected")
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger.Info("database connected")
 
 	err = database.CreateTables(dbCtx, pool)
 	if err != nil {
 		log.Fatal("create tables error:", err)
 	}
 
-	log.Println("database tables ready")
+	logger.Info("database tables ready")
 
 	// HTTP маршруты
 	mux := http.NewServeMux()
@@ -131,7 +134,7 @@ func main() {
 		getItem(repo),
 	)
 
-	handler := logging(mux)
+	handler := logging(mux, logger)
 
 	srv := &http.Server{
 		Addr:    ":8080",
