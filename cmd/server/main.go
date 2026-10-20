@@ -49,7 +49,7 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 		id, err := strconv.Atoi(r.PathValue("id"))
 
 		if err != nil || id <= 0 {
-			logger.Error(
+			logger.Warn(
 				"invalid id",
 				"method", r.Method,
 				"path", r.URL.Path,
@@ -69,11 +69,10 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 		)
 
 		if errors.Is(err, database.ErrItemNotFound) {
-			logger.Error(
+			logger.Info(
 				"item not found",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"id", id,
 			)
 			http.Error(
 				w,
@@ -119,6 +118,10 @@ func ping(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger.Info("database connected")
+
 	// Контекст для подключения к БД
 	dbCtx := context.Background()
 
@@ -132,9 +135,6 @@ func main() {
 	defer pool.Close()
 
 	repo := database.NewRepository(pool)
-
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger.Info("database connected")
 
 	err = database.CreateTables(dbCtx, pool)
 	if err != nil {

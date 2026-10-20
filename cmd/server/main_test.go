@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +15,9 @@ import (
 )
 
 func TestGetItem(t *testing.T) {
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
 	databaseErr := errors.New("database unavailable")
 
 	tests := []struct {
@@ -32,9 +37,9 @@ func TestGetItem(t *testing.T) {
 					GetItem(gomock.Any(), 1).
 					Return(
 						database.Item{
-							ID:     1,
-							Name:   "Test Item",
-							Vremya: "5",
+							ID:          1,
+							Name:        "test item",
+							Description: "5",
 						},
 						nil,
 					)
@@ -43,9 +48,9 @@ func TestGetItem(t *testing.T) {
 			wantStatus: http.StatusOK,
 
 			wantItem: &database.Item{
-				ID:     1,
-				Name:   "Test Item",
-				Vremya: "5",
+				ID:          1,
+				Name:        "test item",
+				Description: "5",
 			},
 		},
 		{
@@ -117,7 +122,7 @@ func TestGetItem(t *testing.T) {
 
 			mux.HandleFunc(
 				"GET /items/{id}",
-				getItem(repo),
+				getItem(repo, logger),
 			)
 
 			req := httptest.NewRequest(
