@@ -47,13 +47,14 @@ func logging(h http.Handler, logger *slog.Logger) http.Handler {
 func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
+		str := r.PathValue("id")
 
 		if err != nil || id <= 0 {
 			logger.Warn(
 				"invalid id",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"id", id,
+				"str", str,
 			)
 			http.Error(
 				w,
@@ -120,7 +121,6 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger.Info("database connected")
 
 	// Контекст для подключения к БД
 	dbCtx := context.Background()
@@ -133,6 +133,8 @@ func main() {
 		log.Fatal("database connection error:", err)
 	}
 	defer pool.Close()
+
+	logger.Info("database connected")
 
 	repo := database.NewRepository(pool)
 
