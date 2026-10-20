@@ -12,9 +12,9 @@ import (
 var ErrItemNotFound = errors.New("item not found")
 
 type Item struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Vremya string `json:"vremya"`
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type Repository struct {
@@ -44,7 +44,7 @@ func (r *Repository) GetItem(
 	).Scan(
 		&item.ID,
 		&item.Name,
-		&item.Vremya,
+		&item.Description,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
