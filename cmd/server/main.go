@@ -186,14 +186,14 @@ func main() {
 	<-sigCtx.Done()
 
 	logger.Info("shutting down...")
-	TelCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	// Даём серверу максимум 10 секунд на graceful shutdown.
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
-		3*time.Second,
+		10*time.Second,
 	)
+	defer cancel()
+	TelCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	err = srv.Shutdown(shutdownCtx)
