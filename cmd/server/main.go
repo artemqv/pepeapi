@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"my-api/internal/database"
+	observability "my-api/internal/telemetry"
 	"net/http"
 	"os"
 	"os/signal"
@@ -122,6 +122,11 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	tp, err := observability.TraceInit(context.Background(), "pepeapi")
+	if err != nil {
+		logger.Warn("trace init error:", "error", err)
+	}
+
 	// Контекст для подключения к БД
 	dbCtx := context.Background()
 
@@ -130,7 +135,7 @@ func main() {
 	// Создаём пул соединений
 	pool, err := database.NewPool(dbCtx, dsn)
 	if err != nil {
-		log.Fatal("database connection error:", err)
+		logger.Error("database connection error:", "error", err)
 	}
 	defer pool.Close()
 
@@ -140,7 +145,7 @@ func main() {
 
 	err = database.CreateTables(dbCtx, pool)
 	if err != nil {
-		log.Fatal("create tables error:", err)
+		logger.Error("create tables error:", "error", err)
 	}
 
 	logger.Info("database tables ready")
@@ -167,12 +172,12 @@ func main() {
 
 	// Запускаем HTTP сервер
 	go func() {
-		log.Println("listening on :8080")
+		logger.Info("listening on :8080")
 
 		err := srv.ListenAndServe()
 
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
+			logger.Error("server error:", "error", err)
 		}
 	}()
 
@@ -186,7 +191,7 @@ func main() {
 
 	<-sigCtx.Done()
 
-	log.Println("shutting down...")
+	logger.Info("shutting down...")
 
 	// Даём серверу максимум 10 секунд на graceful shutdown.
 	shutdownCtx, cancel := context.WithTimeout(
@@ -197,8 +202,11 @@ func main() {
 
 	err = srv.Shutdown(shutdownCtx)
 	if err != nil {
-		log.Printf("shutdown error: %v", err)
+		logger.Error("shutdown error:", "error", err)
 	}
-
-	log.Println("server stopped")
+	err = tp.Shutdown(shutdownCtx)
+	if err != nil {
+		logger.Error("trace shutdown error:", "error", err)
+	}
+	logger.Info("server stopped")
 }

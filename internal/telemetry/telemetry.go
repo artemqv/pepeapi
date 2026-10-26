@@ -13,12 +13,12 @@ import (
 
 func TraceInit(
 	ctx context.Context,
-	ServiceName string,
+	serviceName string,
 ) (*sdktrace.TracerProvider, error) {
 
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceName(ServiceName),
+		semconv.ServiceName(serviceName),
 	)
 
 	exporter, err := otlptracehttp.New(ctx)
