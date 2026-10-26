@@ -186,7 +186,7 @@ func main() {
 	<-sigCtx.Done()
 
 	logger.Info("shutting down...")
-	TelCtx, cancel := context.WithCancel(context.Background())
+	TelCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	// Даём серверу максимум 10 секунд на graceful shutdown.
