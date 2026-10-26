@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"my-api/internal/database"
-	observability "my-api/internal/telemetry"
+	telemetry "my-api/internal/telemetry"
 	"net/http"
 	"os"
 	"os/signal"
@@ -114,17 +113,15 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 		}
 	}
 }
-func ping(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "pong")
-}
 
 func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	tp, err := observability.TraceInit(context.Background(), "pepeapi")
+	tp, err := telemetry.TraceInit(context.Background(), "pepeapi")
 	if err != nil {
 		logger.Warn("trace init error:", "error", err)
+		return
 	}
 
 	// Контекст для подключения к БД
@@ -136,6 +133,7 @@ func main() {
 	pool, err := database.NewPool(dbCtx, dsn)
 	if err != nil {
 		logger.Error("database connection error:", "error", err)
+		return
 	}
 	defer pool.Close()
 
@@ -146,17 +144,13 @@ func main() {
 	err = database.CreateTables(dbCtx, pool)
 	if err != nil {
 		logger.Error("create tables error:", "error", err)
+		return
 	}
 
 	logger.Info("database tables ready")
 
 	// HTTP маршруты
 	mux := http.NewServeMux()
-
-	mux.HandleFunc(
-		"GET /ping",
-		ping,
-	)
 
 	mux.HandleFunc(
 		"GET /items/{id}",
@@ -192,11 +186,13 @@ func main() {
 	<-sigCtx.Done()
 
 	logger.Info("shutting down...")
+	TelCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Даём серверу максимум 10 секунд на graceful shutdown.
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
-		10*time.Second,
+		3*time.Second,
 	)
 	defer cancel()
 
@@ -204,7 +200,7 @@ func main() {
 	if err != nil {
 		logger.Error("shutdown error:", "error", err)
 	}
-	err = tp.Shutdown(shutdownCtx)
+	err = tp.Shutdown(TelCtx)
 	if err != nil {
 		logger.Error("trace shutdown error:", "error", err)
 	}
