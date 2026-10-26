@@ -188,19 +188,20 @@ func main() {
 	logger.Info("shutting down...")
 
 	// Даём серверу максимум 10 секунд на graceful shutdown.
-	shutdownCtx, cancel := context.WithTimeout(
+	shutdownCtx, ShutdownCancel := context.WithTimeout(
 		context.Background(),
 		10*time.Second,
 	)
-	defer cancel()
-	TelCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	defer ShutdownCancel()
 
 	err = srv.Shutdown(shutdownCtx)
 	if err != nil {
 		logger.Error("shutdown error:", "error", err)
 	}
-	err = tp.Shutdown(TelCtx)
+	telCtx, TelCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer TelCancel()
+
+	err = tp.Shutdown(telCtx)
 	if err != nil {
 		logger.Error("trace shutdown error:", "error", err)
 	}
