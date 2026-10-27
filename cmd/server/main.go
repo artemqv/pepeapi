@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"go.opentelemetry.io/otel"
 )
 
 //go:generate mockgen -source=main.go -destination=item_repository_mock_test.go -package=main
@@ -47,6 +49,13 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
 		str := r.PathValue("id")
+		tracer := otel.Tracer("pepeapi/handlers")
+		ctx, span := tracer.Start(
+			r.Context(),
+			"items.get",
+		)
+
+		defer span.End()
 
 		if err != nil || id <= 0 {
 			logger.Warn(
@@ -64,7 +73,7 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 		}
 
 		item, err := repo.GetItem(
-			r.Context(),
+			ctx,
 			id,
 		)
 
