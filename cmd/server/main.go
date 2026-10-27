@@ -14,6 +14,9 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"go.opentelemetry.io/otel"
 )
 
@@ -69,6 +72,8 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 				"invalid id",
 				http.StatusBadRequest,
 			)
+			outcomeAttr := attribute.String("outcome", "invalid_id")
+			span.SetAttributes(outcomeAttr)
 			return
 		}
 
@@ -88,6 +93,8 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 				"item not found",
 				http.StatusNotFound,
 			)
+			outcomeAttr := attribute.String("outcome", "not_found")
+			span.SetAttributes(outcomeAttr)
 			return
 		}
 
@@ -104,6 +111,12 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 				"internal server error",
 				http.StatusInternalServerError,
 			)
+			span.RecordError(err)
+			span.SetStatus(
+				codes.Error,
+				"internal server error")
+			outcomeAttr := attribute.String("outcome", "error")
+			span.SetAttributes(outcomeAttr)
 			return
 		}
 
