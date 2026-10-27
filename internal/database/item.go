@@ -43,8 +43,8 @@ func (r *Repository) GetItem(
 	)
 	defer span.End()
 
-	result := attribute.Int("item.id", id)
-	span.SetAttributes(result)
+	itemIDAttr := attribute.Int("item.id", id)
+	span.SetAttributes(itemIDAttr)
 
 	err := r.pool.QueryRow(
 		ctx,
@@ -61,6 +61,8 @@ func (r *Repository) GetItem(
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
+		itemIDAttr := attribute.String("outcome", "not_found")
+		span.SetAttributes(itemIDAttr)
 		return Item{}, ErrItemNotFound
 	}
 
@@ -70,6 +72,8 @@ func (r *Repository) GetItem(
 			codes.Error,
 			"database operation failed",
 		)
+		itemIDAttr := attribute.String("outcome", "error")
+		span.SetAttributes(itemIDAttr)
 		return Item{}, fmt.Errorf(
 			"get item %d: %w",
 			id,
