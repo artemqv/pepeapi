@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 var ErrItemNotFound = errors.New("item not found")
@@ -33,13 +35,16 @@ func (r *Repository) GetItem(
 	id int,
 ) (Item, error) {
 	var item Item
-	tracer := otel.Tracer("pepeapi/handlers")
+	tracer := otel.Tracer("pepeapi/database")
 
 	ctx, span := tracer.Start(
 		ctx,
 		"database.GetItem",
 	)
 	defer span.End()
+
+	result := attribute.Int("item.id", id)
+	span.SetAttributes(result)
 
 	err := r.pool.QueryRow(
 		ctx,
@@ -60,11 +65,17 @@ func (r *Repository) GetItem(
 	}
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(
+			codes.Error,
+			"database operation failed",
+		)
 		return Item{}, fmt.Errorf(
 			"get item %d: %w",
 			id,
 			err,
 		)
+
 	}
 
 	return item, nil
