@@ -29,6 +29,51 @@ type itemGetter interface {
 	) (database.Item, error)
 }
 
+type userCreator interface {
+	CreateUser(
+		context.Context,
+		string,
+	) (database.User, error)
+}
+
+type createUserRequest struct {
+	Username string `json:"username"`
+}
+
+func createUserHandler(repo userCreator, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logger.Warn("invalid request body", "error", err)
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Username == "" {
+			logger.Warn("username is required")
+			http.Error(w, "username is required", http.StatusBadRequest)
+			return
+		}
+		user, err := repo.CreateUser(
+			r.Context(),
+			req.Username,
+		)
+		if err != nil {
+			logger.Error("create user error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			logger.Error("json error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+	}
+}
+
 func logging(h http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(
 		w http.ResponseWriter,
@@ -190,7 +235,10 @@ func main() {
 		"GET /items/{id}",
 		getItem(repo, logger),
 	)
-
+	mux.HandleFunc(
+		"POST /users",
+		createUserHandler(repo, logger),
+	)
 	handler := logging(mux, logger)
 	otelHandler := otelhttp.NewHandler(
 		handler,
