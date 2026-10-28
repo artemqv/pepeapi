@@ -132,7 +132,18 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 				"path", r.URL.Path,
 				"error", err,
 			)
+			span.RecordError(err)
+			span.SetStatus(
+				codes.Error,
+				"internal server error")
+			outcomeAttr := attribute.String("outcome", "error")
+			span.SetAttributes(outcomeAttr)
+
 		}
+
+		outcomeAttr := attribute.String("outcome", "success")
+		span.SetAttributes(outcomeAttr)
+
 	}
 }
 
