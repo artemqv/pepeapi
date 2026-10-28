@@ -35,11 +35,32 @@ type userCreator interface {
 		string,
 	) (database.User, error)
 }
-
+type chatCreator interface {
+	CreateChat(
+		context.Context,
+	) (database.Chat, error)
+}
 type createUserRequest struct {
 	Username string `json:"username"`
 }
 
+func createChatHandler(repo chatCreator, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		chat, err := repo.CreateChat(r.Context())
+		if err != nil {
+			logger.Error("create chat error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(chat); err != nil {
+			logger.Error("json error", "error", err)
+			return
+		}
+	}
+}
 func createUserHandler(repo userCreator, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req createUserRequest
@@ -64,7 +85,6 @@ func createUserHandler(repo userCreator, logger *slog.Logger) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
 		if err := json.NewEncoder(w).Encode(user); err != nil {
 			logger.Error("json error", "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -230,7 +250,10 @@ func main() {
 
 	// HTTP маршруты
 	mux := http.NewServeMux()
-
+	mux.HandleFunc(
+		"POST /chats",
+		createChatHandler(repo, logger),
+	)
 	mux.HandleFunc(
 		"GET /items/{id}",
 		getItem(repo, logger),
