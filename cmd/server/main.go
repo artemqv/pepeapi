@@ -14,10 +14,10 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-
-	"go.opentelemetry.io/otel"
 )
 
 //go:generate mockgen -source=main.go -destination=item_repository_mock_test.go -package=main
@@ -138,6 +138,7 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 				"internal server error")
 			outcomeAttr := attribute.String("outcome", "error")
 			span.SetAttributes(outcomeAttr)
+			return
 
 		}
 
@@ -191,10 +192,13 @@ func main() {
 	)
 
 	handler := logging(mux, logger)
+	otelHandler := otelhttp.NewHandler(
+		handler,
+		"http.handler")
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: handler,
+		Handler: otelHandler,
 	}
 
 	// Запускаем HTTP сервер
