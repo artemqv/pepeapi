@@ -43,7 +43,50 @@ type chatCreator interface {
 type createUserRequest struct {
 	Username string `json:"username"`
 }
+type addChatMemberRequest struct {
+	UserID int `json:"user_id"`
+}
+type chatMemberAdder interface {
+	AddChatMember(
+		context.Context,
+		int,
+		int,
+	) error
+}
 
+func addChatMemberHandler(repo chatMemberAdder, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req addChatMemberRequest
+		chatID, err := strconv.Atoi(r.PathValue("chatID"))
+		if err != nil || chatID <= 0 {
+			logger.Warn("invalid chatID", "error", err)
+			http.Error(w, "invalid chatID", http.StatusBadRequest)
+			return
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logger.Error("Json init failed", "error", err)
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+
+		}
+		if req.UserID <= 0 {
+			http.Error(w, "invalid user id", http.StatusBadRequest)
+			return
+		}
+		err = repo.AddChatMember(
+			r.Context(),
+			chatID,
+			req.UserID,
+		)
+		if err != nil {
+			logger.Error("add chat member error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}
+}
 func createChatHandler(repo chatCreator, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		chat, err := repo.CreateChat(r.Context())

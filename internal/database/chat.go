@@ -29,3 +29,22 @@ func (r *Repository) CreateChat(
 
 	return chat, nil
 }
+func (r *Repository) AddChatMember(
+	ctx context.Context,
+	chatID int,
+	userID int,
+) error {
+	_, err := r.pool.Exec(
+		ctx,
+		`
+		INSERT INTO chat_members (user_id, chat_id)
+		VALUES ($1, $2)
+	`,
+		userID,
+		chatID,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
