@@ -419,6 +419,15 @@ func main() {
 	logger.Info("database tables ready")
 	// HTTP маршруты
 	mux := http.NewServeMux()
+
+	hub := NewHub()
+	go hub.Run()
+
+	mux.HandleFunc(
+		"GET /",
+		chatPageHandler,
+	)
+
 	mux.HandleFunc(
 		"GET /users/{userID}/chats",
 		getChatsHandler(repo, logger),
@@ -453,6 +462,10 @@ func main() {
 		getMessagesHandler(repo, logger),
 	)
 
+	mux.HandleFunc(
+		"GET /chats/{chatID}/ws",
+		websocketHandler(hub, logger),
+	)
 	// Старый маршрут из учебного API
 	mux.HandleFunc(
 		"GET /items/{id}",

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PepeChat</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f4f6; color: #222; font: 15px Arial, sans-serif; }
+    .app { max-width: 620px; min-height: 100vh; margin: auto; padding: 24px 16px; background: white; }
+    .header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .logo { width: 62px; height: 62px; object-fit: cover; border-radius: 14px; background: #3f62e9; }
+    h1 { margin: 0; font-size: 26px; font-weight: 600; }
+    .fields { display: grid; grid-template-columns: 1fr 95px; gap: 8px; }
+    input, button { min-height: 42px; padding: 10px 12px; border: 1px solid #d2d6dc; border-radius: 6px; font: inherit; }
+    button { background: #303846; color: white; cursor: pointer; border-color: #303846; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    #connect { width: 100%; margin-top: 8px; }
+    #status { min-height: 20px; margin: 12px 0; font-size: 13px; color: #6b7280; }
+    #messages { height: 340px; overflow-y: auto; border: 1px solid #e2e5e9; border-radius: 6px; padding: 12px; background: #fafafa; }
+    .message { margin: 0 0 8px; padding: 9px 11px; border-radius: 6px; background: #eceff3; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #form { display: flex; gap: 8px; margin-top: 10px; }
+    #text { flex: 1; min-width: 0; }
+    @media (max-width: 420px) { .app { padding: 16px 12px; } h1 { font-size: 22px; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <img class="logo" src="https://cdn.aptoide.com/imgs/f/9/2/f92adefd519cb3f684bf9b706c57b86d_icon.png" alt="Логотип MAX">
+      <h1>PepeChat</h1>
+    </header>
+
+    <div class="fields">
+      <input id="username" placeholder="Имя" autocomplete="nickname" maxlength="40">
+      <input id="chatID" type="number" min="1" value="13" title="Номер чата" aria-label="Номер чата">
+    </div>
+    <button id="connect" type="button">Подключиться</button>
+    <p id="status" role="status">Не подключено</p>
+
+    <div id="messages" aria-label="Сообщения"></div>
+    <form id="form">
+      <input id="text" placeholder="Сообщение" autocomplete="off" maxlength="4000">
+      <button id="send" type="submit" disabled>Отправить</button>
+    </form>
+  </main>
+
+  <script>
+    const connectBtn = document.getElementById('connect');
+    const sendBtn = document.getElementById('send');
+    const statusEl = document.getElementById('status');
+    const messagesEl = document.getElementById('messages');
+    const usernameEl = document.getElementById('username');
+    const chatEl = document.getElementById('chatID');
+    const textEl = document.getElementById('text');
+
+    let socket = null;
+    let connectionId = 0;
+
+    function status(text) { statusEl.textContent = text; }
+    function showMessage(text) {
+      const item = document.createElement('div');
+      item.className = 'message';
+      item.textContent = text;
+      messagesEl.appendChild(item);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function connect() {
+      const name = usernameEl.value.trim();
+      const chatID = chatEl.value.trim();
+      if (!name) { status('Введите имя.'); return; }
+      if (!/^[1-9]\d*$/.test(chatID)) { status('Введите корректный номер чата.'); return; }
+
+      // Отменяем обработчики предыдущего подключения, если оно существовало.
+      const currentId = ++connectionId;
+      if (socket) {
+        socket.onopen = socket.onclose = socket.onmessage = socket.onerror = null;
+        socket.close();
+      }
+
+      connectBtn.disabled = true;
+      sendBtn.disabled = true;
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+      // Первая попытка — маршрут с chatID. Если его нет в Go, пробуем старый /ws.
+      const routes = [`/chats/${chatID}/ws`, '/ws'];
+      let routeIndex = 0;
+
+      function tryRoute() {
+        if (currentId !== connectionId) return;
+        const route = routes[routeIndex];
+        status(`Подключение к ${route}...`);
+        let connected = false;
+        let ws;
+
+        try {
+          ws = new WebSocket(`${protocol}//${location.host}${route}`);
+        } catch (error) {
+          status(`Ошибка WebSocket: ${error.message}`);
+          connectBtn.disabled = false;
+          return;
+        }
+
+        socket = ws;
+        ws.onopen = () => {
+          if (currentId !== connectionId) return;
+          connected = true;
+          sendBtn.disabled = false;
+          connectBtn.disabled = false;
+          if (route === '/ws') {
+            status('Подключено через /ws — общий чат, номер комнаты не учитывается.');
+          } else {
+            status(`Подключено к чату ${chatID}.`);
+          }
+          textEl.focus();
+        };
+        ws.onmessage = (event) => {
+          if (currentId === connectionId) showMessage(String(event.data));
+        };
+        ws.onerror = (event) => {
+          console.error('WebSocket error:', route, event);
+        };
+        ws.onclose = (event) => {
+          if (currentId !== connectionId) return;
+          if (!connected && routeIndex < routes.length - 1) {
+            routeIndex++;
+            tryRoute();
+            return;
+          }
+          sendBtn.disabled = true;
+          connectBtn.disabled = false;
+          status(connected
+            ? `Соединение закрыто (код ${event.code}).`
+            : 'Не удалось подключиться. Проверь WebSocket-маршрут и логи Go-сервера.');
+        };
+      }
+
+      tryRoute();
+    }
+
+    connectBtn.addEventListener('click', connect);
+    document.getElementById('form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        status('Сначала подключитесь к серверу.');
+        return;
+      }
+      const name = usernameEl.value.trim();
+      const text = textEl.value.trim();
+      if (!name || !text) return;
+      socket.send(`${name}: ${text}`);
+      textEl.value = '';
+    });
+  </script>
+</body>
+</html>
