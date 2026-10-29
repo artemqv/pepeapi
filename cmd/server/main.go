@@ -56,6 +56,19 @@ type messageCreator interface {
 		string,
 	) (database.Message, error)
 }
+type messageGetter interface {
+	GetMessagesByChatID(
+		context.Context,
+		int,
+	) ([]database.Message, error)
+}
+type chatGetter interface {
+	GetChatsByUserID(
+		context.Context,
+		int,
+	) ([]database.Chat, error)
+}
+
 type createUserRequest struct {
 	Username string `json:"username"`
 }
@@ -67,6 +80,59 @@ type createMessageRequest struct {
 	Text   string `json:"text"`
 }
 
+func getChatsHandler(repo chatGetter, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(r.PathValue("userID"))
+		if err != nil || userID <= 0 {
+			logger.Warn("invalid user id")
+			http.Error(w, "invalid user id", http.StatusBadRequest)
+			return
+		}
+
+		chats, err := repo.GetChatsByUserID(
+			r.Context(),
+			userID,
+		)
+		if err != nil {
+			logger.Error("get chats error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(chats); err != nil {
+			logger.Error("json error", "error", err)
+			return
+		}
+	}
+}
+
+func getMessagesHandler(repo messageGetter, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		chatID, err := strconv.Atoi(r.PathValue("chatID"))
+		if err != nil || chatID <= 0 {
+			logger.Warn("invalid chat id", "error", err)
+			http.Error(w, "invalid chat id", http.StatusBadRequest)
+			return
+		}
+		messages, err := repo.GetMessagesByChatID(
+			r.Context(),
+			chatID,
+		)
+		if err != nil {
+			logger.Warn("internal server error", "error", err)
+			http.Error(w, "invalid chat id", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(messages); err != nil {
+			logger.Error("json error", "error", err)
+			return
+		}
+
+	}
+}
 func createMessageHandler(repo messageCreator, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		chatID, err := strconv.Atoi(r.PathValue("chatID"))
@@ -351,29 +417,46 @@ func main() {
 	}
 
 	logger.Info("database tables ready")
-
 	// HTTP маршруты
 	mux := http.NewServeMux()
-
 	mux.HandleFunc(
-		"POST /chats",
-		createChatHandler(repo, logger),
+		"GET /users/{userID}/chats",
+		getChatsHandler(repo, logger),
 	)
-	mux.HandleFunc(
-		"GET /items/{id}",
-		getItem(repo, logger),
-	)
+	// Создание пользователя
 	mux.HandleFunc(
 		"POST /users",
 		createUserHandler(repo, logger),
 	)
+
+	// Создание чата
+	mux.HandleFunc(
+		"POST /chats",
+		createChatHandler(repo, logger),
+	)
+
+	// Добавление пользователя в чат
 	mux.HandleFunc(
 		"POST /chats/{chatID}/members",
 		addChatMemberHandler(repo, logger),
 	)
+
+	// Отправка сообщения
 	mux.HandleFunc(
 		"POST /chats/{chatID}/messages",
-		addChatMemberHandler(repo, logger),
+		createMessageHandler(repo, logger),
+	)
+
+	// Получение истории сообщений
+	mux.HandleFunc(
+		"GET /chats/{chatID}/messages",
+		getMessagesHandler(repo, logger),
+	)
+
+	// Старый маршрут из учебного API
+	mux.HandleFunc(
+		"GET /items/{id}",
+		getItem(repo, logger),
 	)
 	handler := logging(mux, logger)
 	otelHandler := otelhttp.NewHandler(

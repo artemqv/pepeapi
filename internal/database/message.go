@@ -43,3 +43,49 @@ func (r *Repository) CreateMessage(
 
 	return message, nil
 }
+
+func (r *Repository) GetMessagesByChatID(
+	ctx context.Context,
+	chatID int,
+) ([]Message, error) {
+
+	var messages []Message
+
+	rows, err := r.pool.Query(
+		ctx,
+		`
+			SELECT id, text, user_id, chat_id
+			FROM messages
+			WHERE chat_id = $1
+			ORDER BY id ASC
+		`,
+		chatID,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message Message
+
+		err := rows.Scan(
+			&message.ID,
+			&message.Text,
+			&message.UserID,
+			&message.ChatID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, message)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}

@@ -29,6 +29,7 @@ func (r *Repository) CreateChat(
 
 	return chat, nil
 }
+
 func (r *Repository) AddChatMember(
 	ctx context.Context,
 	chatID int,
@@ -47,4 +48,42 @@ func (r *Repository) AddChatMember(
 		return err
 	}
 	return nil
+}
+
+func (r *Repository) GetChatsByUserID(
+	ctx context.Context,
+	userID int,
+) ([]Chat, error) {
+	chats := make([]Chat, 0)
+
+	rows, err := r.pool.Query(
+		ctx,
+		`
+			SELECT chat_id
+			FROM chat_members
+			WHERE user_id = $1
+			ORDER BY chat_id ASC
+		`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var chat Chat
+
+		if err := rows.Scan(&chat.ID); err != nil {
+			return nil, err
+		}
+
+		chats = append(chats, chat)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return chats, nil
 }
