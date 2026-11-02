@@ -39,7 +39,7 @@ func websocketHandler(hub *Hub, logger *slog.Logger) http.HandlerFunc {
 			hub.unregister <- client
 			conn.Close()
 		}()
-		``
+
 		go func() {
 			defer conn.Close()
 
