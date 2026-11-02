@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"my-api/internal/auth"
 	"my-api/internal/database"
 	telemetry "my-api/internal/telemetry"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -29,9 +33,11 @@ type itemGetter interface {
 	) (database.Item, error)
 }
 
-type userCreator interface {
+type registrationCreator interface {
 	CreateUser(
 		context.Context,
+		string,
+		*string,
 		string,
 	) (database.User, error)
 }
@@ -69,8 +75,10 @@ type chatGetter interface {
 	) ([]database.Chat, error)
 }
 
-type createUserRequest struct {
-	Username string `json:"username"`
+type registerRequest struct {
+	Username    string  `json:"username"`
+	DisplayName *string `json:"display_name"`
+	Password    string  `json:"password"`
 }
 type addChatMemberRequest struct {
 	UserID int `json:"user_id"`
@@ -231,36 +239,57 @@ func createChatHandler(repo chatCreator, logger *slog.Logger) http.HandlerFunc {
 		}
 	}
 }
-func createUserHandler(repo userCreator, logger *slog.Logger) http.HandlerFunc {
+func registerHandler(repo registrationCreator, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req createUserRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			logger.Warn("invalid request body", "error", err)
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		var req registerRequest
+
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			logger.Error("Invalid JSON", "error", err)
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
-		if req.Username == "" {
-			logger.Warn("username is required")
-			http.Error(w, "username is required", http.StatusBadRequest)
+
+		if req.Username == "" || req.Password == "" {
+			logger.Warn("Registration validation failed", "reason", "missing username or password")
+			http.Error(w, "Username and password are required", http.StatusBadRequest)
+
+			return
+		}
+		if req.DisplayName == nil || strings.TrimSpace(*req.DisplayName) == "" {
+			http.Error(w, "Display name is required", http.StatusBadRequest)
+			return
+		}
+		hashedPassword, err := auth.HashPassword(req.Password)
+		if err != nil {
+			logger.Error("Password hashing failed", "error", err)
+			http.Error(w, "Password hashing failed", http.StatusInternalServerError)
 			return
 		}
 		user, err := repo.CreateUser(
 			r.Context(),
 			req.Username,
+			req.DisplayName,
+			hashedPassword,
 		)
 		if err != nil {
-			logger.Error("create user error", "error", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			var pgErr *pgconn.PgError
+
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				http.Error(w, "Username already exists", http.StatusConflict)
+				return
+			}
+
+			logger.Error("Create user error", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(user); err != nil {
-			logger.Error("json error", "error", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
+		w.WriteHeader(http.StatusCreated)
 
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			logger.Error("Failed to encode registration response", "error", err)
+		}
 	}
 }
 
@@ -396,7 +425,11 @@ func main() {
 	// Контекст для подключения к БД
 	dbCtx := context.Background()
 
-	dsn := "postgres://app:secret@localhost:5432/myapi?sslmode=disable"
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		logger.Error("DATABASE_URL is not set")
+		return
+	}
 
 	// Создаём пул соединений
 	pool, err := database.NewPool(dbCtx, dsn)
@@ -410,13 +443,6 @@ func main() {
 
 	repo := database.NewRepository(pool)
 
-	err = database.CreateTables(dbCtx, pool)
-	if err != nil {
-		logger.Error("create tables error:", "error", err)
-		return
-	}
-
-	logger.Info("database tables ready")
 	// HTTP маршруты
 	mux := http.NewServeMux()
 
@@ -434,8 +460,8 @@ func main() {
 	)
 	// Создание пользователя
 	mux.HandleFunc(
-		"POST /users",
-		createUserHandler(repo, logger),
+		"POST /register",
+		registerHandler(repo, logger),
 	)
 
 	// Создание чата

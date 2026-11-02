@@ -5,6 +5,8 @@
 .gitconfig
 *.log
 *.tmp
+.env
+*.bak
 
 
 
