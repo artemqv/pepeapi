@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -74,18 +75,84 @@ type chatGetter interface {
 		int,
 	) ([]database.Chat, error)
 }
-
+type loginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 type registerRequest struct {
 	Username    string  `json:"username"`
 	DisplayName *string `json:"display_name"`
 	Password    string  `json:"password"`
 }
+type authUserGetter interface {
+	GetAuthUserByUsername(
+		context.Context,
+		string,
+	) (database.AuthUser, error)
+}
+
 type addChatMemberRequest struct {
 	UserID int `json:"user_id"`
 }
 type createMessageRequest struct {
 	UserID int    `json:"user_id"`
 	Text   string `json:"text"`
+}
+
+func loginHandler(repo authUserGetter, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req loginRequest
+
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			logger.Error("Invalid JSON", "error", err)
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		if req.Username == "" || req.Password == "" {
+			logger.Warn("Login validation failed", "reason", "missing username or password")
+			http.Error(w, "Username and password are required", http.StatusBadRequest)
+			return
+		}
+
+		authUser, err := repo.GetAuthUserByUsername(
+			r.Context(),
+			req.Username,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			logger.Warn("Login failed", "reason", "user not found")
+			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+			return
+		}
+		if err != nil {
+			logger.Error("GetAuthUserByUsername error", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if authUser.PasswordHash == nil {
+			logger.Warn("Login failed", "reason", "user not found or password hash is nil")
+			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+			return
+		}
+		valid, err := auth.VerifyPassword(
+			req.Password,
+			*authUser.PasswordHash,
+		)
+		if err != nil {
+			logger.Error("Password verification error", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if !valid {
+			logger.Warn("Login failed", "reason", "invalid password")
+			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 func getChatsHandler(repo chatGetter, logger *slog.Logger) http.HandlerFunc {
