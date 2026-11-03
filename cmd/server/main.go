@@ -517,6 +517,11 @@ func main() {
 	go hub.Run()
 
 	mux.HandleFunc(
+		"POST /login",
+		loginHandler(repo, logger),
+	)
+
+	mux.HandleFunc(
 		"GET /",
 		chatPageHandler,
 	)
