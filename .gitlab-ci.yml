@@ -1,81 +1,31 @@
-workflow:
-  rules:
-    - if: '$CI_COMMIT_TAG'
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
-    - when: never
-
-stages:
-  - build
-  - publish
-
-default:
+build_image:
   image: pcr.csc.sibsutis.ru/docker.io/docker:27-cli
-  before_script:
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        IMAGE_TAG="$CI_COMMIT_TAG"
-      else
-        IMAGE_TAG="$(printf '%.8s' "$CI_COMMIT_SHA")"
-      fi
-      export IMAGE_TAG
-      printf '%s' "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
-
-.native_build:
-  stage: build
+  tags:
+    - amd64
   services:
     - name: pcr.csc.sibsutis.ru/docker.io/docker:27-dind
       alias: docker
       entrypoint: ["env", "DOCKER_TLS_CERTDIR=", "dockerd-entrypoint.sh"]
-      command: ["--tls=false"]
-      variables:
-        HEALTHCHECK_TCP_PORT: "2375"
+
   rules:
     - if: '$CI_COMMIT_TAG'
-      when: on_success
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
       when: manual
-      allow_failure: false
     - when: never
   script:
     - |
       export DOCKER_HOST="tcp://docker:2375"
       export DOCKER_TLS_CERTDIR=""
       unset DOCKER_TLS DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_CONTEXT
-      docker buildx build \
-        --platform "linux/$ARCH" \
+
+      IMAGE_TAG="${CI_COMMIT_TAG:-$(printf '%.8s' "$CI_COMMIT_SHA")}"
+      printf '%s' "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+
+      docker context create ci --docker "host=$DOCKER_HOST"
+      docker buildx create --name multiarch-builder --driver docker-container \
+        --driver-opt image=pcr.csc.sibsutis.ru/docker.io/moby/buildkit:buildx-stable-1 \
+        --use ci
+      docker buildx build --provenance=false --push \
+        --platform linux/arm64,linux/amd64 \
         --build-arg BASE_IMAGE_PREFIX=pcr.csc.sibsutis.ru/docker.io/ \
-        --tag "$CI_REGISTRY_IMAGE:ci-$CI_PIPELINE_ID-$ARCH" \
-        --push .
-
-build_amd64:
-  extends: .native_build
-  tags:
-    - amd64
-  variables:
-    ARCH: amd64
-
-build_arm64:
-  extends: .native_build
-  tags:
-    - arm64
-  variables:
-    ARCH: arm64
-
-publish_manifest:
-  stage: publish
-  tags:
-    - amd64
-  needs:
-    - build_amd64
-    - build_arm64
-  rules:
-    - if: '$CI_COMMIT_TAG'
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
-    - when: never
-  script:
-    - |
-      docker buildx imagetools create \
-        --tag "$CI_REGISTRY_IMAGE:$IMAGE_TAG" \
-        "$CI_REGISTRY_IMAGE:ci-$CI_PIPELINE_ID-amd64" \
-        "$CI_REGISTRY_IMAGE:ci-$CI_PIPELINE_ID-arm64"
-      docker buildx imagetools inspect "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
+        --tag "$CI_REGISTRY_IMAGE:$IMAGE_TAG" .

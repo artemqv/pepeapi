@@ -2,41 +2,23 @@
 
 ## Сборка и публикация
 
-Dockerfile использует многоэтапную сборку: Go 1.26.3 → Alpine.
-Dockerfile.scratch использует тот же статический бинарник и CA-сертификаты,
-но не содержит ОС, shell или динамических библиотек. CGO_ENABLED=0 позволяет
-запускать приложение без libc; веб-страница встроена через go:embed.
+CI повторяет пример на странице 69 PDF (слайд 45): одна задача build_image,
+Docker-in-Docker, docker context create, docker buildx create с драйвером
+docker-container и одна команда buildx build для linux/arm64 и linux/amd64.
+Buildx сам публикует общий multi-arch index; отдельная задача manifest не нужна.
 
-CI состоит из трёх задач:
+При push коммита задача запускается вручную кнопкой Play, при push Git-тега —
+автоматически. Тег образа — Git-тег либо первые 8 символов SHA.
+Контекст сборки — точка в конце команды, то есть корень репозитория.
 
-- build_amd64 — Buildx на Runner с тегом amd64.
-- build_arm64 — Buildx на Runner с тегом arm64.
-- publish_manifest — объединение образов в общий multi-arch index после обеих сборок.
+Docker CLI, DinD, BuildKit и базовые образы CI берутся через кафедральный proxy.
+TLS отключён по запросу пользователя; настройки подключения задаются в script,
+чтобы переменные проекта/группы не вернули порт 2376. Runner должен разрешать DinD.
 
-При push ветки обе сборки запускаются вручную кнопкой Play.
-При push Git-тега все задачи выполняются автоматически.
-Итоговый тег образа — Git-тег либо первые 8 символов SHA.
-Промежуточные теги ci-PIPELINE_ID-ARCH изолируют разные pipeline.
-Используйте совместимые с Docker Git-теги, например v0.2.0.
-
-Docker CLI и базовые образы CI загружаются через кафедральный proxy.
-Локально BASE_IMAGE_PREFIX пустой, поэтому используется Docker Hub.
-QEMU, binfmt и отдельный builder не настраиваются.
-
-## Docker-сервис Runner
-
-По запросу пользователя TLS между Docker CLI и DinD отключён.
-В .native_build объявлен один сервис docker:27-dind через кафедральный proxy
-с алиасом docker. Сервис запускается через env с пустым DOCKER_TLS_CERTDIR
-и флагом --tls=false. Непосредственно перед сборкой shell задаёт
-DOCKER_HOST=tcp://docker:2375 и пустой DOCKER_TLS_CERTDIR, снимает DOCKER_TLS,
-DOCKER_TLS_VERIFY, DOCKER_CERT_PATH и DOCKER_CONTEXT. Это предотвращает
-перекрытие настроек значениями переменных проекта/группы с более высоким
-приоритетом, чем variables в YAML.
-Порт daemon не публикуется на хост через эту конфигурацию.
-
-Runner должен разрешать запуск DinD (обычно privileged). Если сервис не стартует,
-нужны его логи и проверка настроек Runner у администратора.
+QEMU и binfmt не устанавливаются. Dockerfile компилирует Go через GOARCH на
+BUILDPLATFORM, а финальный этап не выполняет RUN: эмуляция для этих шагов не нужна.
+Dockerfile использует Go 1.26.3 → Alpine; Dockerfile.scratch — статический бинарник
+и CA-сертификаты. Локально BASE_IMAGE_PREFIX пустой и используется Docker Hub.
 
 ## Запуск CI
 
@@ -48,8 +30,8 @@ git remote -v
 git push origin HEAD
 ```
 
-Открыть Build → Pipelines и нажать Play у **обеих** сборок.
-После успеха обеих автоматически публикуется общий manifest.
+Открыть Build → Pipelines и нажать Play у build_image.
+Одна задача собирает и публикует обе архитектуры.
 
 Для автоматической сборки выбрать новый Git-тег на нужном коммите:
 
@@ -99,7 +81,3 @@ docker buildx build --load -f Dockerfile.scratch -t pepeapi:scratch .
 ```
 
 Для запуска использовать docker run выше с именем локального образа.
-
-Scratch-образ локально собран и запущен с PostgreSQL; страница, регистрация и вход
-работали. Сборка основного образа остановилась на загрузке Alpine из Docker Hub
-из-за TLS timeout. Реальные pipeline и публикация в GitLab ещё не подтверждены.
