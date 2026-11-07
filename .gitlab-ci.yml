@@ -3,35 +3,49 @@ stages:
 
 build_image:
   stage: build
+
   image: docker:27-cli
+
   services:
     - name: docker:27-dind
-      alias: docker
+      alias: pepe-dind
+      variables:
+        HEALTHCHECK_TCP_PORT: "2375"
+
   variables:
-    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_HOST: "tcp://pepe-dind:2375"
     DOCKER_TLS_CERTDIR: ""
+    DOCKER_TLS_VERIFY: ""
+    DOCKER_CERT_PATH: ""
+
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: on_success
+
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+
+    - when: never
+
   before_script:
+    - echo "DOCKER_HOST=$DOCKER_HOST"
     - docker info
-    - docker buildx version
-    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
-    - docker buildx create --driver docker-container --name pr2-builder --use
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker buildx create --name pepeapi-builder --driver docker-container --use
     - docker buildx inspect --bootstrap
+
   script:
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
         IMAGE_TAG="$CI_COMMIT_TAG"
       else
-        IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+        IMAGE_TAG="$(printf '%.8s' "$CI_COMMIT_SHA")"
       fi
-      echo "Building ${CI_REGISTRY_IMAGE}:${IMAGE_TAG}"
+
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${CI_REGISTRY_IMAGE}:${IMAGE_TAG}" \
-        --push \
-        .
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG'
-      when: on_success
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
-      when: manual
-      allow_failure: true
+        -t "$CI_REGISTRY_IMAGE:$IMAGE_TAG" \
+        --push .
+
+      docker buildx imagetools inspect "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
