@@ -1,11 +1,8 @@
 build_image:
   image: pcr.csc.sibsutis.ru/docker.io/docker:27-cli
-  tags:
-    - amd64
   services:
     - name: pcr.csc.sibsutis.ru/docker.io/docker:27-dind
       alias: docker
-      entrypoint: ["env", "DOCKER_TLS_CERTDIR=", "dockerd-entrypoint.sh"]
 
   rules:
     - if: '$CI_COMMIT_TAG'
@@ -20,7 +17,6 @@ build_image:
 
       docker context create ci 
       docker buildx create --name multiarch-builder --driver docker-container \
-        --driver-opt image=pcr.csc.sibsutis.ru/docker.io/moby/buildkit:buildx-stable-1 \
         --use ci
       docker buildx build --provenance=false --push \
         --platform linux/arm64,linux/amd64 \
