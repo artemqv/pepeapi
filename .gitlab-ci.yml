@@ -8,8 +8,6 @@ stages:
   - build
   - publish
 
-# Docker service and DOCKER_* must come from the department Runner.
-# Do not add another service with alias docker; see pr2_ci/README.md.
 default:
   image: pcr.csc.sibsutis.ru/docker.io/docker:27-cli
   before_script:
@@ -24,6 +22,16 @@ default:
 
 .native_build:
   stage: build
+  services:
+    - name: pcr.csc.sibsutis.ru/docker.io/docker:27-dind
+      alias: docker
+      variables:
+        HEALTHCHECK_TCP_PORT: "2375"
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_TLS_VERIFY: ""
+    DOCKER_CERT_PATH: ""
   rules:
     - if: '$CI_COMMIT_TAG'
       when: on_success

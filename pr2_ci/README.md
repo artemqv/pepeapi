@@ -25,19 +25,14 @@ QEMU, binfmt и отдельный builder не настраиваются.
 
 ## Docker-сервис Runner
 
-CI использует кафедральные DOCKER_* без переопределения TLS.
-В YAML не объявлен дополнительный DinD: ранее наблюдался конфликт алиаса docker.
-Нужно подтвердить у администратора наличие одного встроенного Docker-сервиса
-на обоих типах Runner. Если его нет, добавить в .native_build:
+По запросу пользователя TLS между Docker CLI и DinD отключён.
+В .native_build объявлен один сервис docker:27-dind через кафедральный proxy
+с алиасом docker. DOCKER_HOST указывает на tcp://docker:2375;
+DOCKER_TLS_CERTDIR, DOCKER_TLS_VERIFY и DOCKER_CERT_PATH заданы пустыми.
+Порт daemon не публикуется на хост через эту конфигурацию.
 
-```yaml
-  services:
-    - name: pcr.csc.sibsutis.ru/docker.io/docker:27-dind
-      alias: docker
-```
-
-Если сервис уже есть, второй добавлять нельзя. При ошибке подключения запросить
-у администратора конфигурацию services/privileged/volumes без секретов и логи DinD.
+Runner должен разрешать запуск DinD (обычно privileged). Если сервис не стартует,
+нужны его логи и проверка настроек Runner у администратора.
 
 ## Запуск CI
 
