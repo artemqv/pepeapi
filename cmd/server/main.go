@@ -482,7 +482,7 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
+	println("Starting server...")
 	tp, err := telemetry.TraceInit(context.Background(), "pepeapi")
 	if err != nil {
 		logger.Warn("trace init error:", "error", err)

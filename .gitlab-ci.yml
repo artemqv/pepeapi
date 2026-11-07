@@ -14,14 +14,11 @@ build_image:
     - when: never
   script:
     - |
-      export DOCKER_HOST="tcp://docker:2375"
-      export DOCKER_TLS_CERTDIR=""
-      unset DOCKER_TLS DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_CONTEXT
 
       IMAGE_TAG="${CI_COMMIT_TAG:-$(printf '%.8s' "$CI_COMMIT_SHA")}"
       printf '%s' "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
 
-      docker context create ci --docker "host=$DOCKER_HOST"
+      docker context create ci 
       docker buildx create --name multiarch-builder --driver docker-container \
         --driver-opt image=pcr.csc.sibsutis.ru/docker.io/moby/buildkit:buildx-stable-1 \
         --use ci
