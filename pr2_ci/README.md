@@ -27,8 +27,12 @@ QEMU, binfmt и отдельный builder не настраиваются.
 
 По запросу пользователя TLS между Docker CLI и DinD отключён.
 В .native_build объявлен один сервис docker:27-dind через кафедральный proxy
-с алиасом docker. DOCKER_HOST указывает на tcp://docker:2375;
-DOCKER_TLS_CERTDIR, DOCKER_TLS_VERIFY и DOCKER_CERT_PATH заданы пустыми.
+с алиасом docker. Сервис запускается через env с пустым DOCKER_TLS_CERTDIR
+и флагом --tls=false. Непосредственно перед сборкой shell задаёт
+DOCKER_HOST=tcp://docker:2375 и пустой DOCKER_TLS_CERTDIR, снимает DOCKER_TLS,
+DOCKER_TLS_VERIFY, DOCKER_CERT_PATH и DOCKER_CONTEXT. Это предотвращает
+перекрытие настроек значениями переменных проекта/группы с более высоким
+приоритетом, чем variables в YAML.
 Порт daemon не публикуется на хост через эту конфигурацию.
 
 Runner должен разрешать запуск DinD (обычно privileged). Если сервис не стартует,

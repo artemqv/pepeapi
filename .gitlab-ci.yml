@@ -25,13 +25,10 @@ default:
   services:
     - name: pcr.csc.sibsutis.ru/docker.io/docker:27-dind
       alias: docker
+      entrypoint: ["env", "DOCKER_TLS_CERTDIR=", "dockerd-entrypoint.sh"]
+      command: ["--tls=false"]
       variables:
         HEALTHCHECK_TCP_PORT: "2375"
-  variables:
-    DOCKER_HOST: "tcp://docker:2375"
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_TLS_VERIFY: ""
-    DOCKER_CERT_PATH: ""
   rules:
     - if: '$CI_COMMIT_TAG'
       when: on_success
@@ -41,6 +38,9 @@ default:
     - when: never
   script:
     - |
+      export DOCKER_HOST="tcp://docker:2375"
+      export DOCKER_TLS_CERTDIR=""
+      unset DOCKER_TLS DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_CONTEXT
       docker buildx build \
         --platform "linux/$ARCH" \
         --build-arg BASE_IMAGE_PREFIX=pcr.csc.sibsutis.ru/docker.io/ \
