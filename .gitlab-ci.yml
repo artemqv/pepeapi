@@ -1,51 +1,73 @@
-stages:
-  - build
-
-build_image:
-  stage: build
-
-  image: docker:27-cli
-
-  services:
-    - name: docker:27-dind
-      alias: pepe-dind
-      variables:
-        HEALTHCHECK_TCP_PORT: "2375"
-
-  variables:
-    DOCKER_HOST: "tcp://pepe-dind:2375"
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_TLS_VERIFY: ""
-    DOCKER_CERT_PATH: ""
-
+workflow:
   rules:
     - if: '$CI_COMMIT_TAG'
-      when: on_success
-
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
-      when: manual
-      allow_failure: true
-
     - when: never
 
-  before_script:
-    - echo "DOCKER_HOST=$DOCKER_HOST"
-    - docker info
-    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-    - docker buildx create --name pepeapi-builder --driver docker-container --use
-    - docker buildx inspect --bootstrap
+stages:
+  - build
+  - publish
 
-  script:
+# Docker service and DOCKER_* must come from the department Runner.
+# Do not add another service with alias docker; see pr2_ci/README.md.
+default:
+  image: pcr.csc.sibsutis.ru/docker.io/docker:27-cli
+  before_script:
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
         IMAGE_TAG="$CI_COMMIT_TAG"
       else
         IMAGE_TAG="$(printf '%.8s' "$CI_COMMIT_SHA")"
       fi
+      export IMAGE_TAG
+      printf '%s' "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
 
+.native_build:
+  stage: build
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: false
+    - when: never
+  script:
+    - |
       docker buildx build \
-        --platform linux/amd64,linux/arm64 \
-        -t "$CI_REGISTRY_IMAGE:$IMAGE_TAG" \
+        --platform "linux/$ARCH" \
+        --build-arg BASE_IMAGE_PREFIX=pcr.csc.sibsutis.ru/docker.io/ \
+        --tag "$CI_REGISTRY_IMAGE:ci-$CI_PIPELINE_ID-$ARCH" \
         --push .
 
+build_amd64:
+  extends: .native_build
+  tags:
+    - amd64
+  variables:
+    ARCH: amd64
+
+build_arm64:
+  extends: .native_build
+  tags:
+    - arm64
+  variables:
+    ARCH: arm64
+
+publish_manifest:
+  stage: publish
+  tags:
+    - amd64
+  needs:
+    - build_amd64
+    - build_arm64
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
+    - when: never
+  script:
+    - |
+      docker buildx imagetools create \
+        --tag "$CI_REGISTRY_IMAGE:$IMAGE_TAG" \
+        "$CI_REGISTRY_IMAGE:ci-$CI_PIPELINE_ID-amd64" \
+        "$CI_REGISTRY_IMAGE:ci-$CI_PIPELINE_ID-arm64"
       docker buildx imagetools inspect "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
