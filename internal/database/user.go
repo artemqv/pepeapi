@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+type AuthUser struct {
+	ID           int
+	Username     string
+	PasswordHash *string
+}
 type User struct {
 	ID          int       `json:"id"`
 	Username    string    `json:"username"`
@@ -40,4 +45,38 @@ func (r *Repository) CreateUser(
 		return User{}, err
 	}
 	return user, nil
+}
+
+func (r *Repository) GetAuthUserByUsername(
+	ctx context.Context,
+	username string,
+) (AuthUser, error) {
+	var user AuthUser
+	err := r.pool.QueryRow(
+		ctx,
+		`
+			SELECT id, username, password_hash
+			FROM users
+			WHERE username = $1
+		`,
+		username,
+	).Scan(
+		&user.ID,
+		&user.Username,
+		&user.PasswordHash,
+	)
+	if err != nil {
+		return AuthUser{}, err
+	}
+	return user, nil
+}
+
+func (r *Repository) GetUserIDByUsername(ctx context.Context, username string) (int, error) {
+	var userID int
+	err := r.pool.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE username = $1
+	`, username).Scan(&userID)
+	return userID, err
 }

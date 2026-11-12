@@ -51,7 +51,7 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 	if parts[2] != fmt.Sprintf("v=%d", argon2.Version) {
 		return false, fmt.Errorf("unsupported argon2 version: %s", parts[2])
 	}
-	if parts[3] != fmt.Sprintf("m=%d,t=%d,p=%d", 64*1024, 3, 4) {
+	if parts[3] != fmt.Sprintf("m=%d,t=%d,p=%d", memory, iterations, threads) {
 		return false, fmt.Errorf("unsupported argon2 parameters: %s", parts[3])
 	}
 

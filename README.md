@@ -645,6 +645,8 @@ go vet ./...
 
 ## Docker
 
+Практическая работа №2: [CI и команды запуска](pr2_ci/README.md).
+
 В репозитории есть `Dockerfile` с multi-stage сборкой:
 
 ```bash

@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -47,6 +48,10 @@ type chatCreator interface {
 	) (database.Chat, error)
 }
 
+type activeSessionGetter interface {
+	GetActiveSessionUserID(ctx context.Context, tokenHash [32]byte) (int, error)
+}
+
 type chatMemberAdder interface {
 	AddChatMember(
 		context.Context,
@@ -54,27 +59,12 @@ type chatMemberAdder interface {
 		int,
 	) error
 }
-type messageCreator interface {
-	CreateMessage(
-		context.Context,
-		int,
-		int,
-		string,
-	) (database.Message, error)
-}
-type messageGetter interface {
-	GetMessagesByChatID(
-		context.Context,
-		int,
-	) ([]database.Message, error)
-}
 type chatGetter interface {
 	GetChatsByUserID(
 		context.Context,
 		int,
 	) ([]database.Chat, error)
 }
-
 type registerRequest struct {
 	Username    string  `json:"username"`
 	DisplayName *string `json:"display_name"`
@@ -83,17 +73,58 @@ type registerRequest struct {
 type addChatMemberRequest struct {
 	UserID int `json:"user_id"`
 }
-type createMessageRequest struct {
-	UserID int    `json:"user_id"`
-	Text   string `json:"text"`
+type sessionContextKey int
+
+const sessionUserIDKey sessionContextKey = 0
+
+func requireSession(repo activeSessionGetter, logger *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session_token")
+		if err != nil {
+			if errors.Is(err, http.ErrNoCookie) {
+				logger.Warn("missing session cookie")
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			logger.Error("cookie error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		sessionToken := cookie.Value
+		if cookie.Value == "" {
+			logger.Warn("empty session token")
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		sessionTokenHash := auth.HashSessionToken(sessionToken)
+
+		userID, err := repo.GetActiveSessionUserID(
+			r.Context(),
+			sessionTokenHash,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			logger.Warn("invalid session token")
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if err != nil {
+			logger.Error("get active session error", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), sessionUserIDKey, userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func getChatsHandler(repo chatGetter, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.PathValue("userID"))
-		if err != nil || userID <= 0 {
+		userID, ok := r.Context().Value(sessionUserIDKey).(int)
+		if !ok || userID <= 0 {
 			logger.Warn("invalid user id")
-			http.Error(w, "invalid user id", http.StatusBadRequest)
+			http.Error(w, "invalid user id", http.StatusUnauthorized)
 			return
 		}
 
@@ -110,79 +141,6 @@ func getChatsHandler(repo chatGetter, logger *slog.Logger) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 
 		if err := json.NewEncoder(w).Encode(chats); err != nil {
-			logger.Error("json error", "error", err)
-			return
-		}
-	}
-}
-
-func getMessagesHandler(repo messageGetter, logger *slog.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		chatID, err := strconv.Atoi(r.PathValue("chatID"))
-		if err != nil || chatID <= 0 {
-			logger.Warn("invalid chat id", "error", err)
-			http.Error(w, "invalid chat id", http.StatusBadRequest)
-			return
-		}
-		messages, err := repo.GetMessagesByChatID(
-			r.Context(),
-			chatID,
-		)
-		if err != nil {
-			logger.Warn("internal server error", "error", err)
-			http.Error(w, "invalid chat id", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(messages); err != nil {
-			logger.Error("json error", "error", err)
-			return
-		}
-
-	}
-}
-func createMessageHandler(repo messageCreator, logger *slog.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		chatID, err := strconv.Atoi(r.PathValue("chatID"))
-		if err != nil || chatID <= 0 {
-			http.Error(w, "invalid chat id", http.StatusBadRequest)
-			return
-		}
-
-		var req createMessageRequest
-
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			logger.Error("Json init failed", "error", err)
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-		if req.UserID <= 0 {
-			logger.Warn("invalid UserID", "error", err)
-			http.Error(w, "invalid UserID", http.StatusBadRequest)
-			return
-
-		}
-		if req.Text == "" {
-			logger.Warn("only string pls", "error", err)
-			http.Error(w, "only string pls", http.StatusBadRequest)
-			return
-
-		}
-		message, err := repo.CreateMessage(
-			r.Context(),
-			chatID,
-			req.UserID,
-			req.Text,
-		)
-		if err != nil {
-			logger.Error("create message error", "error", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-
-		if err := json.NewEncoder(w).Encode(message); err != nil {
 			logger.Error("json error", "error", err)
 			return
 		}
@@ -214,6 +172,10 @@ func addChatMemberHandler(repo chatMemberAdder, logger *slog.Logger) http.Handle
 			chatID,
 			req.UserID,
 		)
+		if errors.Is(err, database.ErrChatMembersNotEditable) {
+			http.Error(w, "chat members cannot be edited", http.StatusForbidden)
+			return
+		}
 		if err != nil {
 			logger.Error("add chat member error", "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -415,7 +377,6 @@ func getItem(repo itemGetter, logger *slog.Logger) http.HandlerFunc {
 func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
 	tp, err := telemetry.TraceInit(context.Background(), "pepeapi")
 	if err != nil {
 		logger.Warn("trace init error:", "error", err)
@@ -450,13 +411,18 @@ func main() {
 	go hub.Run()
 
 	mux.HandleFunc(
+		"POST /login",
+		loginHandler(repo, logger),
+	)
+
+	mux.HandleFunc(
 		"GET /",
 		chatPageHandler,
 	)
 
-	mux.HandleFunc(
-		"GET /users/{userID}/chats",
-		getChatsHandler(repo, logger),
+	mux.Handle(
+		"GET /me/chats",
+		requireSession(repo, logger, getChatsHandler(repo, logger)),
 	)
 	// Создание пользователя
 	mux.HandleFunc(
@@ -470,6 +436,11 @@ func main() {
 		createChatHandler(repo, logger),
 	)
 
+	mux.Handle(
+		"POST /chats/direct",
+		requireSession(repo, logger, openDirectChatHandler(repo, logger)),
+	)
+
 	// Добавление пользователя в чат
 	mux.HandleFunc(
 		"POST /chats/{chatID}/members",
@@ -477,20 +448,20 @@ func main() {
 	)
 
 	// Отправка сообщения
-	mux.HandleFunc(
+	mux.Handle(
 		"POST /chats/{chatID}/messages",
-		createMessageHandler(repo, logger),
+		requireSession(repo, logger, createMessageHandler(repo, logger)),
 	)
 
 	// Получение истории сообщений
-	mux.HandleFunc(
+	mux.Handle(
 		"GET /chats/{chatID}/messages",
-		getMessagesHandler(repo, logger),
+		requireSession(repo, logger, getMessagesHandler(repo, logger)),
 	)
 
-	mux.HandleFunc(
+	mux.Handle(
 		"GET /chats/{chatID}/ws",
-		websocketHandler(hub, logger),
+		requireSession(repo, logger, websocketHandler(repo,hub, logger)),
 	)
 	// Старый маршрут из учебного API
 	mux.HandleFunc(

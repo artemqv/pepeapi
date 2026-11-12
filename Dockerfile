@@ -1,22 +1,18 @@
-FROM golang:1.26.3-alpine AS builder
-
-WORKDIR /app
-
-COPY go.mod ./
-
+ARG BASE_IMAGE_PREFIX=""
+ARG BUILDPLATFORM
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE_PREFIX}golang:1.26.3-alpine AS builder
+ARG TARGETOS=linux
+ARG TARGETARCH
+WORKDIR /src
+COPY go.mod go.sum ./
 RUN go mod download
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/server
 
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
-
-
-FROM alpine:3.22
-
-WORKDIR /app
-
-COPY --from=builder /app/server /app/server
-
+FROM ${BASE_IMAGE_PREFIX}alpine:3.24
+COPY --from=builder /out/app /app
 EXPOSE 8080
-
-CMD ["/app/server"]
+USER 65532:65532
+ENTRYPOINT ["/app"]

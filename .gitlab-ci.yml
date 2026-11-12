@@ -1,0 +1,24 @@
+build_image:
+  image: pcr.csc.sibsutis.ru/docker.io/docker:27-cli
+  services:
+    - name: pcr.csc.sibsutis.ru/docker.io/docker:27-dind
+      alias: docker
+
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
+      when: manual
+    - when: never
+  script:
+    - |
+
+      IMAGE_TAG="${CI_COMMIT_TAG:-$(printf '%.8s' "$CI_COMMIT_SHA")}"
+      printf '%s' "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+
+      docker context create ci 
+      docker buildx create --name multiarch-builder --driver docker-container \
+        --use ci
+      docker buildx build --provenance=false --push \
+        --platform linux/arm64,linux/amd64 \
+        --build-arg BASE_IMAGE_PREFIX=pcr.csc.sibsutis.ru/docker.io/ \
+        --tag "$CI_REGISTRY_IMAGE:$IMAGE_TAG" .
