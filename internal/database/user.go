@@ -70,3 +70,13 @@ func (r *Repository) GetAuthUserByUsername(
 	}
 	return user, nil
 }
+
+func (r *Repository) GetUserIDByUsername(ctx context.Context, username string) (int, error) {
+	var userID int
+	err := r.pool.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE username = $1
+	`, username).Scan(&userID)
+	return userID, err
+}

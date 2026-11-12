@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -23,7 +24,20 @@ func (f loginRepoFunc) GetAuthUserByUsername(ctx context.Context, username strin
 	return f(ctx, username)
 }
 
-func runLoginRequest(repo loginRepoFunc, body string) *httptest.ResponseRecorder {
+type loginRepoStub struct {
+	loginRepoFunc
+	createSession func(context.Context, [32]byte, int, time.Time) error
+}
+
+func (s loginRepoStub) CreateSession(ctx context.Context, hash [32]byte, userID int, expiresAt time.Time) error {
+	return s.createSession(ctx, hash, userID, expiresAt)
+}
+
+func runLoginRequest(lookup loginRepoFunc, body string) *httptest.ResponseRecorder {
+	return runLoginRequestWithRepo(loginRepoStub{loginRepoFunc: lookup}, body)
+}
+
+func runLoginRequestWithRepo(repo loginRepository, body string) *httptest.ResponseRecorder {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /login", loginHandler(repo, logger))
@@ -47,15 +61,18 @@ func TestLoginHandlerCredentials(t *testing.T) {
 		password   string
 		wantStatus int
 		wantBody   string
+		sessionErr error
+		wantWrites int
 	}{
-		{name: "correct password", password: password, wantStatus: http.StatusOK},
+		{name: "correct password", password: password, wantStatus: http.StatusOK, wantWrites: 1},
 		{name: "incorrect password", password: "WrongPassword", wantStatus: http.StatusUnauthorized, wantBody: "Invalid username or password\n"},
+		{name: "session write fails", password: password, wantStatus: http.StatusInternalServerError, wantBody: "Internal server error\n", sessionErr: errors.New("session storage unavailable"), wantWrites: 1},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			repo := loginRepoFunc(func(ctx context.Context, username string) (database.AuthUser, error) {
+			lookup := func(ctx context.Context, username string) (database.AuthUser, error) {
 				calls++
 				if ctx == nil {
 					t.Fatal("request context is nil")
@@ -64,10 +81,26 @@ func TestLoginHandlerCredentials(t *testing.T) {
 					t.Fatalf("username = %q, want pepe", username)
 				}
 				return database.AuthUser{ID: 42, Username: "pepe", PasswordHash: &encoded}, nil
-			})
+			}
+			var writes int
+			var savedHash [32]byte
+			repo := loginRepoStub{
+				loginRepoFunc: lookup,
+				createSession: func(_ context.Context, hash [32]byte, userID int, expiresAt time.Time) error {
+					writes++
+					savedHash = hash
+					if userID != 42 {
+						t.Errorf("session user ID = %d, want 42", userID)
+					}
+					if !expiresAt.After(time.Now()) {
+						t.Error("session expiration must be in the future")
+					}
+					return tc.sessionErr
+				},
+			}
 
 			body := `{"username":"pepe","password":"` + tc.password + `"}`
-			rec := runLoginRequest(repo, body)
+			rec := runLoginRequestWithRepo(repo, body)
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tc.wantStatus, rec.Body.String())
 			}
@@ -76,6 +109,24 @@ func TestLoginHandlerCredentials(t *testing.T) {
 			}
 			if calls != 1 {
 				t.Errorf("GetAuthUserByUsername calls = %d, want 1", calls)
+			}
+			if writes != tc.wantWrites {
+				t.Errorf("CreateSession calls = %d, want %d", writes, tc.wantWrites)
+			}
+			if tc.wantStatus == http.StatusOK {
+				cookies := rec.Result().Cookies()
+				if len(cookies) != 1 {
+					t.Fatalf("response contains %d cookies, want 1", len(cookies))
+				}
+				cookie := cookies[0]
+				if cookie.Name != "session_token" || cookie.Value == "" || !cookie.HttpOnly {
+					t.Fatal("expected a nonempty HttpOnly session_token cookie")
+				}
+				if auth.HashSessionToken(cookie.Value) != savedHash {
+					t.Error("cookie token does not match the saved hash")
+				}
+			} else if len(rec.Result().Header.Values("Set-Cookie")) != 0 {
+				t.Error("failed login must not set a cookie")
 			}
 			if strings.Contains(rec.Body.String(), encoded) || strings.Contains(rec.Body.String(), password) {
 				t.Fatal("password or hash leaked to client")

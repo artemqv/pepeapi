@@ -1,55 +1,346 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PepeChat — Messenger !!!!!</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#132a25">
+<title>PepeChat</title>
 <style>
-:root{--bg:#0e1621;--panel:#17212b;--panel2:#202b36;--line:#2b3947;--text:#e8edf3;--muted:#8294a7;--accent:#55a9e6;--green:#5cc7a0;--mine:#295a55;--bubble:#233241}
-*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--text);background:#0a1119}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}
-.shell{display:grid;grid-template-columns:340px minmax(0,1fr);height:100dvh;max-width:1600px;margin:auto;box-shadow:0 0 60px #0005}.sidebar{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.brand{height:76px;padding:17px 22px;display:flex;align-items:center;gap:13px;border-bottom:1px solid var(--line)}.brand-icon{width:42px;height:42px;border-radius:15px;background:linear-gradient(135deg,#4bb8a7,#277b9f);display:grid;place-items:center;font-size:25px;box-shadow:0 5px 20px #1c9a8b44}.brand strong{font-size:20px;letter-spacing:-.5px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:2px;letter-spacing:1.2px}.sidebar-top{padding:20px 17px 12px}.caption{font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px}.field{width:100%;background:#111b25;border:1px solid #334453;color:var(--text);outline:0;border-radius:12px;padding:12px 14px;transition:.2s}.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px #55a9e61c}.hint{font-size:12px;color:var(--muted);line-height:1.5;margin:9px 3px 0}.list-header{display:flex;justify-content:space-between;align-items:center;padding:22px 20px 10px}.list-header h2{font-size:12px;letter-spacing:1.5px;color:var(--muted);margin:0;text-transform:uppercase}.icon-btn{border:0;background:transparent;color:var(--accent);font-size:24px;width:32px;height:32px;border-radius:10px}.icon-btn:hover{background:#ffffff10}.chats{overflow:auto;flex:1;padding:0 9px}.chat-item{width:100%;border:0;background:transparent;text-align:left;color:var(--text);display:flex;gap:12px;align-items:center;padding:13px 11px;border-radius:13px;margin-bottom:3px}.chat-item:hover{background:#ffffff0a}.chat-item.active{background:#294256}.avatar{width:48px;height:48px;flex:0 0 48px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,#397f94,#31536c);font-size:21px;font-weight:700}.chat-info{min-width:0;flex:1}.chat-title{font-weight:650;font-size:14px;display:flex;justify-content:space-between;gap:5px}.chat-preview{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:6px}.sidebar-bottom{padding:16px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}.main{display:flex;flex-direction:column;min-width:0;background:var(--bg);position:relative}.main:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.24;background-image:radial-gradient(#3e596b 0.8px,transparent 0.8px);background-size:25px 25px}.topbar{height:76px;background:#17212bf2;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 28px;gap:13px;z-index:1}.topbar .avatar{width:43px;height:43px;flex-basis:43px;border-radius:15px}.topbar-title{font-weight:700;font-size:16px}.topbar-sub{color:var(--muted);font-size:12px;margin-top:5px}.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#758391;margin-right:5px}.status-dot.online{background:var(--green);box-shadow:0 0 9px #5cc7a077}.topbar-right{margin-left:auto}.pill{font-size:11px;color:#9fb2c3;background:#263746;border:1px solid #35495b;border-radius:999px;padding:7px 11px}.messages{flex:1;overflow-y:auto;z-index:1;padding:28px clamp(16px,6vw,90px);display:flex;flex-direction:column;gap:11px}.empty{margin:auto;text-align:center;color:var(--muted);max-width:330px}.empty-icon{font-size:56px;margin-bottom:14px}.empty h2{font-size:20px;color:var(--text);margin:0 0 9px}.empty p{font-size:13px;line-height:1.7}.msg{max-width:min(75%,560px);align-self:flex-start;background:var(--bubble);padding:10px 14px 9px;border-radius:15px 15px 15px 4px;box-shadow:0 3px 14px #0002;overflow-wrap:anywhere}.msg.mine{align-self:flex-end;background:var(--mine);border-radius:15px 15px 4px 15px}.sender{font-size:12px;font-weight:750;color:#7fcbf5;margin-bottom:5px}.mine .sender{color:#a0e6cc}.body{font-size:14px;line-height:1.55;white-space:pre-wrap}.meta{font-size:10px;color:#b5c5cf99;text-align:right;margin-top:5px}.composer-wrap{z-index:1;padding:16px clamp(16px,6vw,90px) 23px;background:linear-gradient(transparent,#0e1621 18%)}.composer{display:flex;align-items:center;gap:11px;background:#202d39;border:1px solid #354657;border-radius:17px;padding:8px 9px 8px 18px}.composer input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);padding:11px 0;font-size:14px}.composer input::placeholder{color:#8595a4}.send{width:43px;height:43px;border:0;border-radius:13px;background:var(--accent);color:#10212e;display:grid;place-items:center;font-size:23px}.send:hover:not(:disabled){background:#7ac6fb}.notice{font-size:11px;color:#708498;text-align:center;margin-top:10px}.overlay{position:fixed;inset:0;background:#000a;z-index:10;display:grid;place-items:center;padding:16px}.modal{width:min(100%,410px);background:#1b2834;border:1px solid #3c5264;border-radius:20px;padding:27px;box-shadow:0 20px 80px #0008}.modal h2{margin:0 0 7px;font-size:21px}.modal p{font-size:13px;color:var(--muted);line-height:1.6}.modal label{display:block;margin:19px 0 8px;font-size:12px;color:#bdcad5}.primary{border:0;border-radius:12px;background:var(--accent);padding:12px 16px;color:#0c2534;font-weight:700;width:100%;margin-top:16px}.secondary{border:0;background:transparent;color:var(--muted);padding:12px;width:100%;margin-top:5px}.hidden{display:none!important}.mobile-back{display:none}@media(max-width:700px){.shell{grid-template-columns:1fr}.sidebar{display:none}.shell.show-list .sidebar{display:flex}.shell.show-list .main{display:none}.mobile-back{display:inline-flex;margin-left:-10px}.topbar{padding:0 15px;height:69px}.messages{padding:18px 15px}.composer-wrap{padding:12px 12px 17px}.msg{max-width:87%}.brand{height:69px}.sidebar-bottom{padding-bottom:24px}}
+:root{color-scheme:light;--ink:#172e28;--muted:#536b61;--line:#dce5de;--paper:#f5f7f2;--white:#fff;--green:#246047;--lime:#d5efab;--dark:#132a25;font-family:"DM Sans",system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}[hidden]{display:none!important}button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:wait;opacity:.65}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #478963;outline-offset:3px}h1,h2,p{margin:0}
+.shell{height:100dvh;min-height:340px;display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+.top{grid-column:1/-1;background:var(--dark);color:white;display:flex;align-items:center;justify-content:space-between;padding:15px clamp(16px,4vw,48px);gap:16px}.brand{display:flex;align-items:center;gap:11px;font-size:20px;font-weight:800;letter-spacing:-.04em}.logo{width:35px;height:35px;border-radius:11px;background:var(--lime);color:var(--dark);display:grid;place-items:center;font-size:18px}.account{font-size:13px;color:#e1ece3;overflow-wrap:anywhere}
+.sidebar{background:#fbfcfa;border-right:1px solid var(--line);padding:25px 16px 16px;display:flex;flex-direction:column;gap:18px;overflow:auto}.sidebar h1{font-size:25px;letter-spacing:-.05em}.sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 5px}.btn{border:0;border-radius:10px;background:var(--green);color:white;padding:10px 14px;font-weight:700}.btn:hover{filter:brightness(.92)}.secondary{background:#e6efe7;color:var(--ink)}.chat-list{display:grid;gap:5px}.chat{display:flex;align-items:center;gap:10px;width:100%;border:1px solid transparent;border-radius:13px;background:transparent;padding:11px;text-align:left;color:var(--ink);overflow-wrap:anywhere}.chat:hover,.chat[aria-current=true]{background:#e9f2e8;border-color:#d8e7d8}.avatar{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:13px;background:#dfeeda;color:var(--green);font-weight:800}.note{color:var(--muted);font-size:14px;line-height:1.5;padding:0 5px}
+.room{min-width:0;min-height:0;display:flex;flex-direction:column;background-color:#f5f7f2;background-image:radial-gradient(#dce6da 1px,transparent 1px);background-size:22px 22px}.room-head{background:#fbfcfa;border-bottom:1px solid var(--line);padding:16px clamp(16px,4vw,46px);display:flex;align-items:center;gap:10px}.room-head h2{font-size:19px;overflow-wrap:anywhere}.back{display:none}.empty{margin:auto;text-align:center;max-width:350px;padding:24px;display:grid;gap:12px;justify-items:center}.empty .avatar{width:64px;height:64px;border-radius:21px;font-size:28px}.empty h2{font-size:clamp(25px,4vw,35px);letter-spacing:-.055em}.empty p{color:var(--muted);line-height:1.6}
+.history{overflow:auto;flex:1;min-height:0;padding:24px clamp(16px,5vw,70px);display:flex;flex-direction:column;gap:12px}.bubble{background:white;border:1px solid var(--line);border-radius:15px 15px 15px 4px;max-width:min(82%,620px);width:fit-content;padding:10px 14px;overflow-wrap:anywhere}.bubble.mine{margin-left:auto;background:#e2f1d5;border-radius:15px 15px 4px 15px}.author{color:var(--green);font-size:12px;font-weight:800;margin-bottom:3px}.body{white-space:pre-wrap;line-height:1.45}.composer{padding:14px clamp(16px,4vw,46px);background:#fbfcfa;border-top:1px solid var(--line)}.compose-row{display:flex;align-items:end;gap:10px}.field{width:100%;min-width:0;background:white;border:1px solid #c9d7ce;border-radius:10px;padding:10px 12px;color:var(--ink)}textarea.field{resize:vertical;min-height:44px;max-height:150px}.error{color:#9a332c;font-size:14px;margin-top:8px}.history>.error{margin:0}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+dialog{width:min(100% - 32px,420px);border:1px solid var(--line);border-radius:20px;padding:24px;color:var(--ink);box-shadow:0 22px 85px #132a2540}dialog::backdrop{background:#132a2575}dialog h2{font-size:24px;letter-spacing:-.035em}dialog form{display:grid;gap:13px;margin-top:16px}label{display:grid;gap:5px;font-size:14px;font-weight:700}.actions{display:flex;flex-wrap:wrap;gap:8px}.text-btn{border:0;background:none;padding:5px 0;color:var(--green);font-weight:700;text-align:left;width:fit-content}
+@media(max-width:650px){.shell{grid-template-columns:minmax(0,1fr)}.sidebar{border:0}.room{display:none}.shell[data-chat=true] .sidebar{display:none}.shell[data-chat=true] .room{display:flex}.back{display:inline-block}.top{padding:11px 15px}.sidebar{padding-top:18px}.compose-row .btn{padding-inline:10px}}
 </style>
 </head>
 <body>
 <div class="shell" id="shell">
- <aside class="sidebar">
-  <div class="brand"><div class="brand-icon">🐸</div><div><strong>PepeChat</strong><small>YOUR PRIVATE SPACE</small></div></div>
-  <div class="sidebar-top"><div class="caption">Ваш профиль</div><input class="field" id="username" maxlength="40" placeholder="Как вас зовут?" autocomplete="nickname"><p class="hint">Имя пока используется только для отображения сообщений, без авторизации.</p></div>
-  <div class="list-header"><h2>Сообщения</h2><button class="icon-btn" id="addChat" title="Открыть чат" aria-label="Открыть чат">＋</button></div>
-  <div class="chats" id="chatList"></div>
-  <div class="sidebar-bottom">🐸 PepeChat · экспериментальная версия</div>
- </aside>
- <main class="main">
-  <header class="topbar"><button class="icon-btn mobile-back" id="back" aria-label="Список чатов">‹</button><div class="avatar" id="headerAvatar">#</div><div><div class="topbar-title" id="headerTitle">Выберите чат</div><div class="topbar-sub"><span class="status-dot" id="statusDot"></span><span id="statusText">Не подключено</span></div></div><div class="topbar-right"><span class="pill" id="chatBadge">PepeChat</span></div></header>
-  <section class="messages" id="messages" aria-label="Сообщения"><div class="empty" id="empty"><div class="empty-icon">💬</div><h2>Ваши сообщения здесь</h2><p>Откройте чат слева или создайте новый, чтобы начать переписку.</p></div></section>
-  <div class="composer-wrap"><form class="composer" id="form"><input id="text" maxlength="4000" placeholder="Написать сообщение..." autocomplete="off" disabled><button class="send" id="send" type="submit" disabled aria-label="Отправить">➤</button></form><div class="notice">Сообщения пока не сохраняются на сервере и исчезают после перезагрузки.</div></div>
- </main>
+  <header class="top"><div class="brand"><span class="logo" aria-hidden="true">P</span>PepeChat</div><span class="account" id="account">Личные сообщения</span></header>
+  <aside class="sidebar" aria-label="Список чатов">
+    <div class="sidebar-head"><h1>Чаты</h1><button class="btn secondary" id="new-chat" type="button">Новый чат</button></div>
+    <p class="note" id="list-note" role="status">Загружаем чаты…</p>
+    <nav class="chat-list" id="chats" aria-label="Диалоги"></nav>
+  </aside>
+  <main class="room">
+    <div class="empty" id="welcome"><span class="avatar" aria-hidden="true">✦</span><h2>Открой диалог</h2><p>Выбери чат слева или найди собеседника по имени пользователя.</p><button class="btn" id="welcome-new" type="button">Новый чат</button></div>
+    <header class="room-head" id="room-head" hidden><button class="btn secondary back" id="back" type="button" aria-label="Вернуться к чатам">←</button><h2 id="chat-title"></h2></header>
+    <section class="history" id="history" aria-label="История сообщений" hidden></section>
+    <form class="composer" id="composer" hidden>
+      <div class="compose-row"><label class="sr" for="message">Сообщение</label><textarea class="field" id="message" placeholder="Напиши сообщение…" rows="1" required></textarea><button class="btn" id="send" type="submit">Отправить</button></div>
+      <p class="error" id="send-error" role="alert" hidden></p>
+    </form>
+  </main>
 </div>
-<div class="overlay hidden" id="modalOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle">Открыть чат</h2><p>Для тестирования укажите номер чата. Пользователи с одинаковым номером смогут обмениваться сообщениями.</p><label for="newChatID">ID чата</label><input class="field" id="newChatID" type="number" min="1" step="1" placeholder="Например, 13"><label for="newChatName">Название в вашем списке</label><input class="field" id="newChatName" maxlength="45" placeholder="Например, Сергей"><button class="primary" id="createChat">Открыть чат</button><button class="secondary" id="cancelChat">Отмена</button><p id="modalError" role="alert"></p></div></div>
+<dialog id="auth-dialog" aria-labelledby="auth-title">
+  <h2 id="auth-title">Войти в PepeChat</h2>
+  <form id="auth-form">
+    <label>Имя пользователя<input class="field" name="username" autocomplete="username" required></label>
+    <label id="display-label" hidden>Отображаемое имя<input class="field" name="display_name" autocomplete="nickname" disabled></label>
+    <label>Пароль<input class="field" name="password" type="password" autocomplete="current-password" required></label>
+    <p class="error" id="auth-error" role="alert" hidden></p>
+    <button class="btn" type="submit" id="auth-submit">Войти</button>
+    <button class="text-btn" type="button" id="auth-toggle">Создать аккаунт</button>
+  </form>
+</dialog>
+<dialog id="direct-dialog" aria-labelledby="direct-title">
+  <h2 id="direct-title">Новый чат</h2>
+  <form id="direct-form">
+    <label>Имя собеседника<input class="field" name="username" placeholder="@username" autocapitalize="none" required></label>
+    <p class="error" id="direct-error" role="alert" hidden></p>
+    <div class="actions"><button class="btn" type="submit">Открыть чат</button><button class="btn secondary" type="button" id="direct-cancel">Отмена</button></div>
+  </form>
+</dialog>
 <script>
-(() => {
- const $ = id => document.getElementById(id);
- const shell=$('shell'), list=$('chatList'), messages=$('messages'), username=$('username');
- const statusText=$('statusText'), statusDot=$('statusDot'), input=$('text'), send=$('send');
- let chats=[{id:13,name:'Чат 13'}], active=null, socket=null, generation=0;
- const histories=new Map();
- try { const saved=JSON.parse(localStorage.getItem('pepechats')||'null'); if(Array.isArray(saved)) chats=saved.filter(c=>Number.isSafeInteger(c.id)&&c.id>0&&typeof c.name==='string').slice(0,40); } catch {}
- username.value=localStorage.getItem('pepechat-name')||'';
- username.addEventListener('input',()=>localStorage.setItem('pepechat-name',username.value));
- const save=()=>localStorage.setItem('pepechats',JSON.stringify(chats));
- const time=()=>new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
- function state(text,online=false){statusText.textContent=text;statusDot.classList.toggle('online',online);input.disabled=!online;send.disabled=!online;}
- function avatar(name){return (name.trim()[0]||'#').toUpperCase()}
- function renderList(){list.replaceChildren();chats.forEach(c=>{const b=document.createElement('button');b.className='chat-item'+(active===c.id?' active':'');const av=document.createElement('div');av.className='avatar';av.textContent=avatar(c.name);const info=document.createElement('div');info.className='chat-info';const title=document.createElement('div');title.className='chat-title';title.textContent=c.name;const prev=document.createElement('div');prev.className='chat-preview';prev.textContent='Чат #'+c.id;info.append(title,prev);b.append(av,info);b.addEventListener('click',()=>openChat(c.id));list.append(b)})}
- function showEmpty(){const e=document.createElement('div');e.className='empty';e.innerHTML='<div class="empty-icon">✨</div><h2>Начните разговор</h2><p>Напишите первое сообщение в этом чате.</p>';messages.append(e)}
- function appendMessage(raw,store=true){if(!active)return;const sep=raw.indexOf(': ');const sender=sep>=0?raw.slice(0,sep):'Участник';const body=sep>=0?raw.slice(sep+2):raw;const mine=sender===username.value.trim();const item=document.createElement('article');item.className='msg'+(mine?' mine':'');const name=document.createElement('div');name.className='sender';name.textContent=sender;const content=document.createElement('div');content.className='body';content.textContent=body;const stamp=document.createElement('div');stamp.className='meta';stamp.textContent=time();item.append(name,content,stamp);const empty=messages.querySelector('.empty');if(empty)empty.remove();messages.append(item);messages.scrollTop=messages.scrollHeight;if(store){if(!histories.has(active))histories.set(active,[]);histories.get(active).push(raw)}}
- function openChat(id){const c=chats.find(x=>x.id===id);if(!c)return;const name=username.value.trim();if(!name){username.focus();alert('Сначала укажите ваше имя в боковой панели.');shell.classList.add('show-list');return}++generation;const current=generation;if(socket){socket.onopen=socket.onclose=socket.onmessage=socket.onerror=null;socket.close();socket=null}active=id;renderList();shell.classList.remove('show-list');$('headerTitle').textContent=c.name;$('headerAvatar').textContent=avatar(c.name);$('chatBadge').textContent='#'+id;messages.replaceChildren();const history=histories.get(id)||[];if(history.length)history.forEach(raw=>appendMessage(raw,false));else showEmpty();state('Подключение…');const proto=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${proto}//${location.host}/chats/${id}/ws`);socket=ws;ws.onopen=()=>{if(current!==generation)return;state('В сети · чат #'+id,true);input.focus()};ws.onmessage=e=>{if(current===generation)appendMessage(String(e.data))};ws.onerror=()=>{if(current===generation)state('Ошибка соединения')};ws.onclose=e=>{if(current===generation)state('Соединение закрыто · '+e.code)}}
- $('form').addEventListener('submit',e=>{e.preventDefault();const text=input.value.trim(),name=username.value.trim();if(!text||!name||!socket||socket.readyState!==WebSocket.OPEN)return;socket.send(name+': '+text);input.value='';input.focus()});
- function modal(open){$('modalOverlay').classList.toggle('hidden',!open);$('modalError').textContent='';if(open){$('newChatID').value='';$('newChatName').value='';$('newChatID').focus()}}
- $('addChat').onclick=()=>modal(true);$('cancelChat').onclick=()=>modal(false);$('modalOverlay').addEventListener('click',e=>{if(e.target===$('modalOverlay'))modal(false)});document.addEventListener('keydown',e=>{if(e.key==='Escape')modal(false)});
- $('createChat').onclick=()=>{const raw=$('newChatID').value.trim(),id=Number(raw),name=$('newChatName').value.trim()||'Чат '+raw;if(!/^[1-9]\d*$/.test(raw)||!Number.isSafeInteger(id)){$('modalError').textContent='Укажите положительный целый ID.';return}if(!chats.some(c=>c.id===id)){chats.unshift({id,name});save()}modal(false);openChat(id)};
- $('back').onclick=()=>shell.classList.add('show-list');
- renderList();if(chats.length&&username.value.trim())openChat(chats[0].id);else shell.classList.add('show-list');
-})();
+'use strict';
+
+const byID = id => document.getElementById(id);
+const authDialog = byID('auth-dialog');
+const authForm = byID('auth-form');
+const directDialog = byID('direct-dialog');
+const directForm = byID('direct-form');
+const chatList = byID('chats');
+const history = byID('history');
+const messageInput = byID('message');
+const names = new Map();
+const drafts = new Map();
+let chats = [];
+let activeChat = null;
+let ownID = null;
+let authMode = 'login';
+let historyRequest = 0;
+let historyKey = '';
+let historyLoaded = false;
+let sending = false;
+
+function showError(id, message = '') {
+  const element = byID(id);
+  element.textContent = message;
+  element.hidden = !message;
+}
+
+async function api(path, body) {
+  const options = {credentials: 'same-origin'};
+  if (body !== undefined) {
+    options.method = 'POST';
+    options.headers = {'Content-Type': 'application/json'};
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(path, options);
+  if (!response.ok) {
+    const error = new Error('Запрос завершился ошибкой.');
+    error.status = response.status;
+    throw error;
+  }
+  return response.headers.get('content-type')?.includes('application/json') ? response.json() : null;
+}
+
+function showAuth() {
+  if (directDialog.open) directDialog.close();
+  ownID = null;
+  names.clear();
+  drafts.clear();
+  messageInput.value = '';
+  chats = [];
+  selectChat(null);
+  byID('account').textContent = 'Личные сообщения';
+  byID('list-note').textContent = 'Войди, чтобы увидеть свои чаты.';
+  if (!authDialog.open) authDialog.showModal();
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const registering = mode === 'register';
+  byID('auth-title').textContent = registering ? 'Создать аккаунт' : 'Войти в PepeChat';
+  byID('auth-submit').textContent = registering ? 'Зарегистрироваться' : 'Войти';
+  byID('auth-toggle').textContent = registering ? 'Уже есть аккаунт' : 'Создать аккаунт';
+  byID('display-label').hidden = !registering;
+  authForm.elements.display_name.disabled = !registering;
+  authForm.elements.display_name.required = registering;
+  authForm.elements.password.autocomplete = registering ? 'new-password' : 'current-password';
+  showError('auth-error');
+}
+
+authDialog.addEventListener('cancel', event => event.preventDefault());
+byID('auth-toggle').onclick = () => setAuthMode(authMode === 'login' ? 'register' : 'login');
+authForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = byID('auth-submit');
+  const toggle = byID('auth-toggle');
+  const fields = new FormData(authForm);
+  const credentials = {username: fields.get('username').trim(), password: fields.get('password')};
+  if (!credentials.username) {
+    showError('auth-error', 'Введи имя пользователя.');
+    return;
+  }
+  button.disabled = true;
+  toggle.disabled = true;
+  showError('auth-error');
+  try {
+    let registered;
+    if (authMode === 'register') {
+      registered = await api('/register', {...credentials, display_name: fields.get('display_name').trim()});
+      setAuthMode('login');
+    }
+    await api('/login', credentials);
+    ownID = registered?.id ?? null;
+    byID('account').textContent = '@' + credentials.username;
+    authForm.reset();
+    authDialog.close();
+    await loadChats();
+  } catch (error) {
+    showError('auth-error', error.status === 401 ? 'Проверь имя пользователя и пароль.' :
+      error.status === 409 ? 'Это имя пользователя уже занято.' :
+      error.status === 400 ? 'Проверь введённые данные.' : 'Не удалось войти. Попробуй ещё раз.');
+  } finally {
+    button.disabled = false;
+    toggle.disabled = false;
+  }
+});
+
+function titleFor(id) {
+  return names.has(id) ? '@' + names.get(id) : 'Чат #' + id;
+}
+
+function renderChats() {
+  chatList.replaceChildren();
+  for (const chat of chats) {
+    const button = document.createElement('button');
+    button.className = 'chat';
+    button.type = 'button';
+    button.setAttribute('aria-current', String(chat.id === activeChat));
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = names.get(chat.id)?.[0]?.toUpperCase() || '#';
+    const title = document.createElement('span');
+    title.textContent = titleFor(chat.id);
+    button.append(avatar, title);
+    button.onclick = () => selectChat(chat.id);
+    chatList.append(button);
+  }
+}
+
+async function loadChats() {
+  const note = byID('list-note');
+  note.hidden = false;
+  note.textContent = 'Загружаем чаты…';
+  try {
+    chats = await api('/me/chats') || [];
+    note.hidden = chats.length > 0;
+    note.textContent = 'Пока нет чатов.';
+    renderChats();
+  } catch (error) {
+    if (error.status === 401) showAuth();
+    else note.textContent = 'Не удалось загрузить чаты. Обнови страницу, чтобы повторить.';
+  }
+}
+
+function selectChat(id) {
+  if (activeChat !== null) drafts.set(activeChat, messageInput.value);
+  activeChat = id;
+  historyRequest++;
+  historyKey = '';
+  historyLoaded = false;
+  messageInput.value = drafts.get(id) || '';
+  showError('send-error');
+  byID('shell').dataset.chat = String(id !== null);
+  byID('welcome').hidden = id !== null;
+  for (const element of [byID('room-head'), history, byID('composer')]) element.hidden = id === null;
+  renderChats();
+  if (id === null) {
+    history.replaceChildren();
+    return;
+  }
+  byID('chat-title').textContent = titleFor(id);
+  showHistoryNote('Загружаем историю…');
+  refreshHistory(id);
+}
+
+function showHistoryNote(text) {
+  const note = document.createElement('p');
+  note.className = 'note';
+  note.textContent = text;
+  history.replaceChildren(note);
+}
+
+async function refreshHistory(id) {
+  const request = ++historyRequest;
+  try {
+    const messages = await api('/chats/' + id + '/messages') || [];
+    if (activeChat !== id || request !== historyRequest) return;
+    const key = JSON.stringify([ownID, messages]);
+    if (key === historyKey) return;
+    const follow = !historyLoaded || history.scrollHeight - history.scrollTop - history.clientHeight < 72;
+    historyKey = key;
+    historyLoaded = true;
+    if (!messages.length) {
+      showHistoryNote('Сообщений пока нет. Начни разговор.');
+      return;
+    }
+    history.replaceChildren();
+    const fragment = document.createDocumentFragment();
+    for (const message of messages) {
+      const bubble = document.createElement('article');
+      const mine = message.user_id === ownID;
+      bubble.className = mine ? 'bubble mine' : 'bubble';
+      const author = document.createElement('p');
+      author.className = 'author';
+      author.textContent = mine ? 'Ты' : 'Пользователь #' + message.user_id;
+      const text = document.createElement('p');
+      text.className = 'body';
+      text.textContent = message.text;
+      bubble.append(author, text);
+      fragment.append(bubble);
+    }
+    history.append(fragment);
+    if (follow) history.scrollTop = history.scrollHeight;
+  } catch (error) {
+    if (activeChat !== id || request !== historyRequest) return;
+    if (error.status === 401) showAuth();
+    else if (!historyLoaded) showHistoryNote(error.status === 403 ? 'Нет доступа к этому чату.' : 'Не удалось загрузить историю.');
+  }
+}
+
+function openDirectDialog() {
+  if (authDialog.open) return;
+  directForm.reset();
+  showError('direct-error');
+  directDialog.showModal();
+}
+
+byID('new-chat').onclick = openDirectDialog;
+byID('welcome-new').onclick = openDirectDialog;
+byID('direct-cancel').onclick = () => directDialog.close();
+byID('back').onclick = () => selectChat(null);
+directForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = directForm.querySelector('[type=submit]');
+  const username = directForm.elements.username.value.trim().replace(/^@/, '');
+  if (!username) {
+    showError('direct-error', 'Введи имя собеседника.');
+    return;
+  }
+  button.disabled = true;
+  showError('direct-error');
+  try {
+    const chat = await api('/chats/direct', {username});
+    names.set(chat.id, username);
+    if (!chats.some(item => item.id === chat.id)) chats.unshift(chat);
+    byID('list-note').hidden = true;
+    directDialog.close();
+    selectChat(chat.id);
+  } catch (error) {
+    if (error.status === 401) showAuth();
+    else showError('direct-error', error.status === 404 ? 'Пользователь не найден.' :
+      error.status === 400 ? 'Не удалось открыть диалог. Проверь имя собеседника.' : 'Не удалось открыть диалог. Попробуй ещё раз.');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+byID('composer').addEventListener('submit', async event => {
+  event.preventDefault();
+  const id = activeChat;
+  const draft = messageInput.value;
+  const text = draft.trim();
+  if (id === null || !text || sending) return;
+  sending = true;
+  byID('send').disabled = true;
+  showError('send-error');
+  try {
+    const saved = await api('/chats/' + id + '/messages', {text});
+    ownID = saved.user_id;
+    if (activeChat === id && messageInput.value === draft) messageInput.value = '';
+    if (drafts.get(id) === draft) drafts.delete(id);
+    if (activeChat === id) {
+      history.scrollTop = history.scrollHeight;
+      await refreshHistory(id);
+    }
+  } catch (error) {
+    if (error.status === 401) showAuth();
+    else if (activeChat === id) showError('send-error', error.status === 403 ?
+      'Нет доступа к этому чату.' : 'Не удалось отправить сообщение. Попробуй ещё раз.');
+  } finally {
+    sending = false;
+    byID('send').disabled = false;
+  }
+});
+
+messageInput.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    byID('composer').requestSubmit();
+  }
+});
+
+setInterval(() => {
+  if (activeChat !== null && !document.hidden && !sending) refreshHistory(activeChat);
+}, 4000);
+loadChats();
 </script>
 </body>
 </html>

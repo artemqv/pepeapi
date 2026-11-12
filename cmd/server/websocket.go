@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -8,15 +9,37 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func websocketHandler(hub *Hub, logger *slog.Logger) http.HandlerFunc {
-	upgrader := websocket.Upgrader{}
+type chatMemberCheckers interface {
+	IsChatMember(
+		ctx context.Context,
+		chatID,
+		userID int,
+	) (bool, error)
+}
 
+func websocketHandler(repo chatMemberCheckers, hub *Hub, logger *slog.Logger) http.HandlerFunc {
+	upgrader := websocket.Upgrader{}
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		chatID := r.PathValue("chatID")
 		chatIDInt, err := strconv.Atoi(chatID)
 		if err != nil || chatIDInt <= 0 {
 			logger.Warn("invalid chatID", "error", err)
 			http.Error(w, "Invalid chatID", http.StatusBadRequest)
+			return
+		}
+		userID, ok := r.Context().Value(sessionUserIDKey).(int)
+		if !ok || userID <= 0 {
+			logger.Warn("invalid user id")
+			http.Error(w, "invalid user id", http.StatusUnauthorized)
+			return
+		}
+		if IsMember, err := repo.IsChatMember(r.Context(), chatIDInt, userID); err != nil {
+			logger.Warn("error checking chat membership", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		} else if !IsMember {
+			http.Error(w, "user is not a member of this chat", http.StatusForbidden)
 			return
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -73,4 +96,33 @@ func websocketHandler(hub *Hub, logger *slog.Logger) http.HandlerFunc {
 		}
 	}
 
+}
+func chatMemberCheckHandler(repo chatMemberCheckers, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		chatID := r.PathValue("chatID")
+		chatIDInt, err := strconv.Atoi(chatID)
+		if err != nil || chatIDInt <= 0 {
+			logger.Warn("invalid chatID", "error", err)
+			http.Error(w, "Invalid chatID", http.StatusBadRequest)
+			return
+		}
+		userID, ok := r.Context().Value(sessionUserIDKey).(int)
+		if !ok || userID <= 0 {
+			logger.Warn("invalid user id")
+			http.Error(w, "invalid user id", http.StatusUnauthorized)
+			return
+		}
+
+		isMember, err := repo.IsChatMember(r.Context(), chatIDInt, userID)
+		if err != nil {
+			logger.Warn("error checking chat membership", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if !isMember {
+			http.Error(w, "user is not a member of this chat", http.StatusForbidden)
+			return
+		}
+	}
 }
