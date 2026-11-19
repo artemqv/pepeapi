@@ -3,11 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"my-api/internal/database"
+)
+
+var (
+	ErrEmptyMessage  = errors.New("message text is empty")
+	ErrNotChatMember = errors.New("user is not a chat member")
 )
 
 type messageCreator interface {
@@ -87,10 +94,28 @@ func getMessagesHandler(repo messageGetter, logger *slog.Logger) http.HandlerFun
 
 	}
 }
+func messageCheckup(ctx context.Context, repo messageCreator, chatID, userID int, text string) (database.Message, error) {
+	if strings.TrimSpace(text) == "" {
+		return database.Message{}, ErrEmptyMessage
+	}
+	isMember, err := repo.IsChatMember(ctx, chatID, userID)
+	if err != nil {
+		return database.Message{}, err
+	}
+	if !isMember {
+		return database.Message{}, ErrNotChatMember
+	}
+	message, err := repo.CreateMessage(ctx, chatID, userID, text)
+	if err != nil {
+		return database.Message{}, err
+	}
+	return message, nil
+}
 
 func createMessageHandler(repo messageCreator, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		chatID, err := strconv.Atoi(r.PathValue("chatID"))
+
 		if err != nil || chatID <= 0 {
 			http.Error(w, "invalid chat id", http.StatusBadRequest)
 			return
@@ -101,38 +126,34 @@ func createMessageHandler(repo messageCreator, logger *slog.Logger) http.Handler
 			http.Error(w, "invalid user id", http.StatusUnauthorized)
 			return
 		}
-		isMember, err := repo.IsChatMember(r.Context(), chatID, userID)
-		if err != nil {
-			logger.Error("check chat membership", "error", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		if !isMember {
-			logger.Warn("user is not a member of the chat")
-			http.Error(w, "user is not a member of the chat", http.StatusForbidden)
-			return
-		}
+
 		var req createMessageRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Json init failed", "error", err)
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if req.Text == "" {
-			http.Error(w, "only string pls", http.StatusBadRequest)
-			return
-		}
-		message, err := repo.CreateMessage(
+
+		message, err := messageCheckup(
 			r.Context(),
+			repo,
 			chatID,
 			userID,
 			req.Text,
 		)
 		if err != nil {
-			logger.Error("create message error", "error", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			switch {
+			case errors.Is(err, ErrEmptyMessage):
+				http.Error(w, "empty message", http.StatusBadRequest)
+			case errors.Is(err, ErrNotChatMember):
+				http.Error(w, "forbidden", http.StatusForbidden)
+			default:
+				logger.Error("create message error", "error", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 

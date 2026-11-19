@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -17,7 +18,7 @@ type chatMemberCheckers interface {
 	) (bool, error)
 }
 
-func websocketHandler(repo chatMemberCheckers, hub *Hub, logger *slog.Logger) http.HandlerFunc {
+func websocketHandler(repo messageCreator, hub *Hub, logger *slog.Logger) http.HandlerFunc {
 	upgrader := websocket.Upgrader{}
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -35,7 +36,7 @@ func websocketHandler(repo chatMemberCheckers, hub *Hub, logger *slog.Logger) ht
 			return
 		}
 		if IsMember, err := repo.IsChatMember(r.Context(), chatIDInt, userID); err != nil {
-			logger.Warn("error checking chat membership", "error", err)
+			logger.Warn("error while checking chat membership", "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		} else if !IsMember {
@@ -82,16 +83,35 @@ func websocketHandler(repo chatMemberCheckers, hub *Hub, logger *slog.Logger) ht
 
 		for {
 			messageType, message, err := conn.ReadMessage()
+
 			if err != nil {
-				logger.Info("websocket client disconnected", "error", err)
+				logger.Info("client has been disconnected", "error", err)
 				return
 			}
 
 			if messageType == websocket.TextMessage {
+				savedMessage, err := messageCheckup(
+					r.Context(),
+					repo,
+					chatIDInt,
+					userID,
+					(string(message)),
+				)
+				if err != nil {
+					logger.Error("message checkup error", "error", err)
+					return
+				}
+				data, err := json.Marshal(savedMessage)
+				if err != nil {
+					logger.Error("marshal message failed", "error", err)
+					return
+				}
+
 				hub.broadcast <- BroadcastMessage{
 					Room:    chatIDInt,
-					Message: string(message),
+					Message: string(data),
 				}
+
 			}
 		}
 	}

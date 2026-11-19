@@ -5,10 +5,11 @@ import (
 )
 
 type Message struct {
-	ID     int    `json:"id"`
-	Text   string `json:"text"`
-	UserID int    `json:"user_id"`
-	ChatID int    `json:"chat_id"`
+	ID         int    `json:"id"`
+	Text       string `json:"text"`
+	UserID     int    `json:"user_id"`
+	ChatID     int    `json:"chat_id"`
+	AuthorName string `json:"author_name,omitempty"`
 }
 
 func (r *Repository) CreateMessage(
@@ -54,10 +55,12 @@ func (r *Repository) GetMessagesByChatID(
 	rows, err := r.pool.Query(
 		ctx,
 		`
-			SELECT id, text, user_id, chat_id
-			FROM messages
-			WHERE chat_id = $1
-			ORDER BY id ASC
+			SELECT m.id, m.text, m.user_id, m.chat_id,
+			       COALESCE(NULLIF(BTRIM(u.display_name), ''), '@' || u.username)
+			FROM messages AS m
+			JOIN users AS u ON u.id = m.user_id
+			WHERE m.chat_id = $1
+			ORDER BY m.id ASC
 		`,
 		chatID,
 	)
@@ -75,6 +78,7 @@ func (r *Repository) GetMessagesByChatID(
 			&message.Text,
 			&message.UserID,
 			&message.ChatID,
+			&message.AuthorName,
 		)
 		if err != nil {
 			return nil, err

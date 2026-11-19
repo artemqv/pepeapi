@@ -53,6 +53,7 @@ func TestGetOrCreateDirectChatConcurrent(t *testing.T) {
 	for _, path := range []string{
 		"../../migrations/00001_init_schema.sql",
 		"../../migrations/00004_create_direct_chats.sql",
+		"../../migrations/00005_create_chat_members_roles.sql",
 	} {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -171,9 +172,46 @@ func TestGetOrCreateDirectChatConcurrent(t *testing.T) {
 	if err != nil || isMember {
 		t.Fatalf("third user membership: got %t, %v, want false, nil", isMember, err)
 	}
-	groupChat, err := repo.CreateChat(ctx)
+	groupChat, err := repo.CreateChat(ctx, firstUser)
 	if err != nil {
 		t.Fatalf("create regular chat: %v", err)
+	}
+
+	for _, tc := range []struct {
+		userID       int
+		peerUsername string
+	}{
+		{firstUser, "second"},
+		{secondUser, "first"},
+	} {
+		listed, err := repo.GetChatsByUserID(ctx, tc.userID)
+		if err != nil {
+			t.Fatalf("list chats for user %d: %v", tc.userID, err)
+		}
+		foundDirect := false
+		for _, chat := range listed {
+			if chat.ID == chatID {
+				foundDirect = true
+				if chat.PeerUsername != tc.peerUsername {
+					t.Errorf("peer username for user %d = %q, want %q", tc.userID, chat.PeerUsername, tc.peerUsername)
+				}
+			} else if chat.PeerUsername != "" {
+				t.Errorf("group chat %d has peer username %q", chat.ID, chat.PeerUsername)
+			}
+		}
+		if !foundDirect {
+			t.Errorf("direct chat missing for user %d", tc.userID)
+		}
+	}
+
+	var role string
+	if err := pool.QueryRow(ctx, `
+		SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2
+	`, groupChat.ID, firstUser).Scan(&role); err != nil {
+		t.Fatalf("read regular chat creator's role: %v", err)
+	}
+	if role != "owner" {
+		t.Fatalf("regular chat creator's role = %q, want owner", role)
 	}
 	if err := repo.AddChatMember(ctx, groupChat.ID, thirdUser); err != nil {
 		t.Fatalf("add user to regular chat: %v", err)
