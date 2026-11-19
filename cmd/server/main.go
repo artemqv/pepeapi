@@ -45,6 +45,7 @@ type registrationCreator interface {
 type chatCreator interface {
 	CreateChat(
 		context.Context,
+		int,
 	) (database.Chat, error)
 }
 
@@ -186,7 +187,13 @@ func addChatMemberHandler(repo chatMemberAdder, logger *slog.Logger) http.Handle
 }
 func createChatHandler(repo chatCreator, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		chat, err := repo.CreateChat(r.Context())
+		userID, ok := r.Context().Value(sessionUserIDKey).(int)
+		if !ok || userID <= 0 {
+			logger.Warn("invaldi userID", "error", ok)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		chat, err := repo.CreateChat(r.Context(), userID)
 		if err != nil {
 			logger.Error("create chat error", "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -431,9 +438,9 @@ func main() {
 	)
 
 	// Создание чата
-	mux.HandleFunc(
+	mux.Handle(
 		"POST /chats",
-		createChatHandler(repo, logger),
+		requireSession(repo, logger, createChatHandler(repo, logger)),
 	)
 
 	mux.Handle(
@@ -461,7 +468,7 @@ func main() {
 
 	mux.Handle(
 		"GET /chats/{chatID}/ws",
-		requireSession(repo, logger, websocketHandler(repo,hub, logger)),
+		requireSession(repo, logger, websocketHandler(repo, hub, logger)),
 	)
 	// Старый маршрут из учебного API
 	mux.HandleFunc(

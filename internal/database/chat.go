@@ -10,29 +10,55 @@ import (
 var ErrChatMembersNotEditable = errors.New("chat members cannot be edited")
 
 type Chat struct {
-	ID int `json:"id"`
+	ID           int    `json:"id"`
+	PeerUsername string `json:"peer_username,omitempty"`
 }
 
 func (r *Repository) CreateChat(
 	ctx context.Context,
+	userID int,
 ) (Chat, error) {
 	var chat Chat
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer tx.Rollback(ctx)
 
-	err := r.pool.QueryRow(
+	err = tx.QueryRow(
 		ctx,
 		`
             INSERT INTO chats DEFAULT VALUES
-            RETURNING id
+			RETURNING id
         `,
 	).Scan(
 		&chat.ID,
 	)
+	if err != nil {
+		return Chat{}, err
+	}
+	_, err = tx.Exec(
+		ctx,
+		`
+			INSERT INTO chat_members (user_id, chat_id, role)
+			VALUES ($1, $2, 'owner')
+			RETURNING chat_id
+		`,
+		userID,
+		chat.ID,
+	)
+	if err != nil {
+		return Chat{}, err
+
+	}
+
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return Chat{}, err
 	}
 
-	return chat, nil
+	return chat, err
 }
 
 func (r *Repository) AddChatMember(
@@ -65,10 +91,15 @@ func (r *Repository) GetChatsByUserID(
 	rows, err := r.pool.Query(
 		ctx,
 		`
-			SELECT chat_id
-			FROM chat_members
-			WHERE user_id = $1
-			ORDER BY chat_id ASC
+			SELECT m.chat_id, COALESCE(peer.username, '')
+			FROM chat_members AS m
+			LEFT JOIN direct_chats AS d ON d.chat_id = m.chat_id
+			LEFT JOIN users AS peer ON peer.id = CASE
+				WHEN d.user_low_id = $1 THEN d.user_high_id
+				WHEN d.user_high_id = $1 THEN d.user_low_id
+			END
+			WHERE m.user_id = $1
+			ORDER BY m.chat_id ASC
 		`,
 		userID,
 	)
@@ -80,7 +111,7 @@ func (r *Repository) GetChatsByUserID(
 	for rows.Next() {
 		var chat Chat
 
-		if err := rows.Scan(&chat.ID); err != nil {
+		if err := rows.Scan(&chat.ID, &chat.PeerUsername); err != nil {
 			return nil, err
 		}
 
