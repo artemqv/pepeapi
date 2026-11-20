@@ -437,6 +437,11 @@ func main() {
 		registerHandler(repo, logger),
 	)
 
+	mux.HandleFunc(
+		"POST /logout",
+		logoutHandler(repo, logger),
+	)
+
 	// Создание чата
 	mux.Handle(
 		"POST /chats",

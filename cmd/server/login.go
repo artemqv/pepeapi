@@ -18,7 +18,12 @@ type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
-
+type sessionDeleter interface {
+	DeleteSession(
+		context.Context,
+		[32]byte,
+	) error
+}
 type loginRepository interface {
 	GetAuthUserByUsername(
 		context.Context,
@@ -32,14 +37,68 @@ type loginRepository interface {
 	) error
 }
 
+func logoutHandler(repo sessionDeleter, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session_token")
+		switch {
+		case errors.Is(err, http.ErrNoCookie):
+			http.SetCookie(
+				w,
+				&http.Cookie{
+					Name:   "session_token",
+					Value:  "",
+					MaxAge: -1,
+				},
+			)
+			w.WriteHeader(http.StatusNoContent)
+		case err != nil:
+			logger.Error("reading error", "error", err)
+			http.Error(w, "reading error", http.StatusInternalServerError)
+			return
+
+		case cookie.Value == "":
+			http.SetCookie(
+				w,
+				&http.Cookie{
+					Name:   "session_token",
+					Value:  "",
+					MaxAge: -1,
+				},
+			)
+			w.WriteHeader(http.StatusNoContent)
+
+		default:
+			tokenHash := auth.HashSessionToken(cookie.Value)
+			err := repo.DeleteSession(r.Context(), tokenHash)
+			if err != nil {
+				logger.Error("deletion error", "error", err)
+				http.Error(w, "database error", http.StatusInternalServerError)
+				return
+
+			}
+			logger.Info("logged out successfully")
+			http.SetCookie(
+				w,
+				&http.Cookie{
+					Name:   "session_token",
+					Value:  "",
+					MaxAge: -1,
+				},
+			)
+			w.WriteHeader(http.StatusNoContent)
+
+		}
+
+	}
+}
 func loginHandler(repo loginRepository, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req loginRequest
 
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
-			logger.Error("Invalid JSON", "error", err)
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			logger.Error("JSON error", "error", err)
+			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
